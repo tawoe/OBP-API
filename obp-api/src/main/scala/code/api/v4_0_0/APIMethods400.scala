@@ -2733,7 +2733,7 @@ trait APIMethods400 {
       implementedInApiVersion,
       nameOf(deleteCustomerAttribute),
       "DELETE",
-      "/banks/BANK_ID/CUSTOMER_ID/attributes/CUSTOMER_ATTRIBUTE_ID",
+      "/banks/BANK_ID/customers/attributes/CUSTOMER_ATTRIBUTE_ID",
       "Delete Customer Attribute",
       s""" Delete Customer Attribute
          |
