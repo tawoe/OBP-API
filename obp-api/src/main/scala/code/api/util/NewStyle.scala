@@ -8,7 +8,7 @@ import code.DynamicData.DynamicDataProvider
 import code.DynamicEndpoint.{DynamicEndpointProvider, DynamicEndpointT}
 import code.api.APIFailureNewStyle
 import code.api.cache.Caching
-import code.api.util.APIUtil.{OBPReturnType, canGrantAccessToViewCommon, canRevokeAccessToViewCommon, connectorEmptyResponse, createHttpParamsByUrlFuture, createQueriesByHttpParamsFuture, fullBoxOrException, generateUUID, unboxFull, unboxFullOrFail}
+import code.api.util.APIUtil.{OBPEndpoint, OBPReturnType, canGrantAccessToViewCommon, canRevokeAccessToViewCommon, connectorEmptyResponse, createHttpParamsByUrlFuture, createQueriesByHttpParamsFuture, fullBoxOrException, generateUUID, unboxFull, unboxFullOrFail}
 import code.api.util.ApiRole.canCreateAnyTransactionRequest
 import code.api.util.ErrorMessages.{InsufficientAuthorisationToCreateTransactionRequest, _}
 import code.api.v1_4_0.OBPAPI1_4_0.Implementations1_4_0
@@ -2056,6 +2056,46 @@ object NewStyle {
         i => (connectorEmptyResponse(i._1, callContext), i._2)
       }
     }
+
+    def createCounterparty(name: String,
+                           description: String,
+                           createdByUserId: String,
+                           thisBankId: String,
+                           thisAccountId: String,
+                           thisViewId: String,
+                           otherAccountRoutingScheme: String,
+                           otherAccountRoutingAddress: String,
+                           otherAccountSecondaryRoutingScheme: String,
+                           otherAccountSecondaryRoutingAddress: String,
+                           otherBankRoutingScheme: String,
+                           otherBankRoutingAddress: String,
+                           otherBranchRoutingScheme: String,
+                           otherBranchRoutingAddress: String,
+                           isBeneficiary:Boolean,
+                           bespoke: List[CounterpartyBespoke],
+                           callContext: Option[CallContext] = None): OBPEndpoint[CounterpartyTrait] = (
+      Connector.connector.vend.createCounterparty(
+        name= name,
+        description= description,
+        createdByUserId= createdByUserId,
+        thisBankId= thisBankId,
+        thisAccountId= thisAccountId,
+        thisViewId = thisViewId,
+        otherAccountRoutingScheme= otherAccountRoutingScheme,
+        otherAccountRoutingAddress= otherAccountRoutingAddress,
+        otherAccountSecondaryRoutingScheme= otherAccountSecondaryRoutingScheme,
+        otherAccountSecondaryRoutingAddress= otherAccountSecondaryRoutingAddress,
+        otherBankRoutingScheme= otherBankRoutingScheme,
+        otherBankRoutingAddress= otherBankRoutingAddress,
+        otherBranchRoutingScheme= otherBranchRoutingScheme,
+        otherBranchRoutingAddress= otherBranchRoutingAddress,
+        isBeneficiary= isBeneficiary,
+        bespoke= bespoke.map(bespoke =>CounterpartyBespoke(bespoke.key,bespoke.value))
+        , callContext)  map {
+        i => unboxFullOrFail((i._1, callContext), s"$CreateTransactionsException")
+      }
+
+    )
 
   }
 }

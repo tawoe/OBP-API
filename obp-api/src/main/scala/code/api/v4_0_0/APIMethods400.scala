@@ -3743,6 +3743,107 @@ trait APIMethods400 {
       }
     }
 
+    resourceDocs += ResourceDoc(
+      createCounterpartyForAnyAccount,
+      implementedInApiVersion,
+      "createCounterpartyForAnyAccount",
+      "POST",
+      "/banks/BANK_ID/accounts/ACCOUNT_ID/VIEW_ID/counterparties",
+      "Create Counterparty (Explicit)",
+      s"""Create Counterparty (Explicit) for an Account.
+         |
+         |In OBP, there are two types of Counterparty.
+         |
+         |* Explicit Counterparties (those here) which we create explicitly and are used in COUNTERPARTY Transaction Requests
+         |
+         |* Implicit Counterparties (AKA Other Accounts) which are generated automatically from the other sides of Transactions.
+         |
+         |Explicit Counterparties are created for the account / view
+         |They are how the user of the view (e.g. account owner) refers to the other side of the transaction
+         |
+         |name : the human readable name (e.g. Piano teacher, Miss Nipa)
+         |
+         |description : the human readable name (e.g. Piano teacher, Miss Nipa)
+         |
+         |bank_routing_scheme : eg: bankId or bankCode or any other strings
+         |
+         |bank_routing_address : eg: `gh.29.uk`, must be valid sandbox bankIds
+         |
+         |account_routing_scheme : eg: AccountId or AccountNumber or any other strings
+         |
+         |account_routing_address : eg: `1d65db7c-a7b2-4839-af41-95`, must be valid accountIds
+         |
+         |other_account_secondary_routing_scheme : eg: IBan or any other strings
+         |
+         |other_account_secondary_routing_address : if it is IBan, it should be unique for each counterparty.
+         |
+         |other_branch_routing_scheme : eg: branchId or any other strings or you can leave it empty, not useful in sandbox mode.
+         |
+         |other_branch_routing_address : eg: `branch-id-123` or you can leave it empty, not useful in sandbox mode.
+         |
+         |is_beneficiary : must be set to `true` in order to send payments to this counterparty
+         |
+         |bespoke: It supports a list of key-value, you can add it to the counterparty.
+         |
+         |bespoke.key : any info-key you want to add to this counterparty
+         |
+         |bespoke.value : any info-value you want to add to this counterparty
+         |
+         |The view specified by VIEW_ID must have the canAddCounterparty permission
+         |
+         |A minimal example for TransactionRequestType == COUNTERPARTY
+         | {
+         |  "name": "Tesobe1",
+         |  "description": "Good Company",
+         |  "other_bank_routing_scheme": "OBP_BANK_ID",
+         |  "other_bank_routing_address": "gh.29.uk",
+         |  "other_account_routing_scheme": "OBP_ACCOUNT_ID",
+         |  "other_account_routing_address": "8ca8a7e4-6d02-48e3-a029-0b2bf89de9f0",
+         |  "is_beneficiary": true,
+         |  "other_account_secondary_routing_scheme": "",
+         |  "other_account_secondary_routing_address": "",
+         |  "other_branch_routing_scheme": "",
+         |  "other_branch_routing_address": "",
+         |  "bespoke": []
+         |}
+         |
+         |
+         |A minimal example for TransactionRequestType == SEPA
+         |
+         | {
+         |  "name": "Tesobe2",
+         |  "description": "Good Company",
+         |  "other_bank_routing_scheme": "OBP_BANK_ID",
+         |  "other_bank_routing_address": "gh.29.uk",
+         |  "other_account_routing_scheme": "OBP_ACCOUNT_ID",
+         |  "other_account_routing_address": "8ca8a7e4-6d02-48e3-a029-0b2bf89de9f0",
+         |  "other_account_secondary_routing_scheme": "IBAN",
+         |  "other_account_secondary_routing_address": "DE89 3704 0044 0532 0130 00",
+         |  "is_beneficiary": true,
+         |  "other_branch_routing_scheme": "",
+         |  "other_branch_routing_address": "",
+         |  "bespoke": []
+         |}
+         |
+         |${authenticationRequiredMessage(true)}
+         |
+         |""".stripMargin,
+      postCounterpartyJSON,
+      counterpartyWithMetadataJson,
+      List(
+        UserNotLoggedIn,
+        InvalidAccountIdFormat,
+        InvalidBankIdFormat,
+        BankNotFound,
+        AccountNotFound,
+        InvalidJsonFormat,
+        ViewNotFound,
+        CounterpartyAlreadyExists,
+        UnknownError
+      ),
+      Catalogs(notCore, notPSD2, notOBWG),
+      List(apiTagCounterparty, apiTagAccount))
+
 
   }
 

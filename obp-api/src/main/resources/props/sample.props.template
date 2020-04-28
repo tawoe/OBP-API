@@ -114,9 +114,9 @@ jwt.use.ssl=false
 
 
 ## Enable writing API metrics (which APIs are called) to RDBMS
-write_metrics=true
+write_metrics=false
 ## Enable writing connector metrics (which methods are called)to RDBMS 
-write_connector_metrics=true
+write_connector_metrics=false
 
 ## ElasticSearch
 #allow_elasticsearch=true
