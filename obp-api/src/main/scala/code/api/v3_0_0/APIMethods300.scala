@@ -518,7 +518,7 @@ trait APIMethods300 {
               //3 use view and user to moderate the bankaccount object.
               bankIdAccountId <- availableBankIdAccountIdList2
               bankAccount <- Connector.connector.vend.getBankAccount(bankIdAccountId.bankId, bankIdAccountId.accountId) ?~! s"$BankAccountNotFound Current Bank_Id(${bankIdAccountId.bankId}), Account_Id(${bankIdAccountId.accountId}) "
-              view <- APIUtil.checkViewAccessAndReturnView(viewId, bankIdAccountId, Some(u))
+              view <-  Views.views.vend.customView(viewId, bankIdAccountId) or (Views.views.vend.systemView(viewId))
               moderatedAccount <- bankAccount.moderatedBankAccount(view, bankIdAccountId, Full(u), callContext) //Error handling is in lower method
             } yield {
               moderatedAccount

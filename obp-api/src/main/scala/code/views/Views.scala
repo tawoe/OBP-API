@@ -80,7 +80,15 @@ trait Views {
   def privateViewsUserCanAccessForAccount(user: User, bankIdAccountId : BankIdAccountId) : List[View]
   
   //the following return list[BankIdAccountId], just use the list[View] method, the View object contains enough data for it.
-  final def getAllFirehoseAccounts(bankId: BankId, user : User) : List[BankIdAccountId] = firehoseViewsForBank(bankId, user).map(v => BankIdAccountId(v.bankId, v.accountId)).distinct
+  final def getAllFirehoseAccounts(bankId: BankId, user : User) : List[BankIdAccountId] = {
+    if (canUseFirehose(user)) {
+      AccountAccess.findAll(
+        By(AccountAccess.bank_id, bankId.value)
+      ).map(abc => BankIdAccountId(BankId(abc.bank_id.get), AccountId(abc.account_id.get))).distinct
+    }else{
+      Nil
+    }
+  }
   final def getPrivateBankAccounts(user : User) : List[BankIdAccountId] =  privateViewsUserCanAccess(user)._2.map(a => BankIdAccountId(BankId(a.bank_id.get), AccountId(a.account_id.get))).distinct 
   final def getPrivateBankAccountsFuture(user : User) : Future[List[BankIdAccountId]] = Future {getPrivateBankAccounts(user)}
   final def getPrivateBankAccounts(user : User, bankId : BankId) : List[BankIdAccountId] = getPrivateBankAccounts(user).filter(_.bankId == bankId).distinct
