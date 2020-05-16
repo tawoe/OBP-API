@@ -518,7 +518,7 @@ trait APIMethods300 {
               //3 use view and user to moderate the bankaccount object.
               bankIdAccountId <- availableBankIdAccountIdList2
               bankAccount <- Connector.connector.vend.getBankAccount(bankIdAccountId.bankId, bankIdAccountId.accountId) ?~! s"$BankAccountNotFound Current Bank_Id(${bankIdAccountId.bankId}), Account_Id(${bankIdAccountId.accountId}) "
-              view <- APIUtil.checkViewAccessAndReturnView(viewId, bankIdAccountId, Some(u))
+              view <-  Views.views.vend.customView(viewId, bankIdAccountId) or (Views.views.vend.systemView(viewId)) ?~! ViewNotFound
               moderatedAccount <- bankAccount.moderatedBankAccount(view, bankIdAccountId, Full(u), callContext) //Error handling is in lower method
             } yield {
               moderatedAccount
@@ -578,7 +578,7 @@ trait APIMethods300 {
               }
               (bank, callContext) <- NewStyle.function.getBank(bankId, callContext)
               (bankAccount, callContext) <- NewStyle.function.getBankAccount(bankId, accountId, callContext)
-              view <- NewStyle.function.checkViewAccessAndReturnView(viewId, BankIdAccountId(bankAccount.bankId, bankAccount.accountId),Some(u), callContext)
+              view <-Future { Views.views.vend.customView(viewId, BankIdAccountId(bankId, accountId)).openOr(Views.views.vend.systemView(viewId).openOrThrowException(ViewNotFound))}
               allowedParams = List("sort_direction", "limit", "offset", "from_date", "to_date")
               httpParams <- NewStyle.function.createHttpParams(cc.url)
               obpQueryParams <- NewStyle.function.createObpParams(httpParams, allowedParams, callContext)
