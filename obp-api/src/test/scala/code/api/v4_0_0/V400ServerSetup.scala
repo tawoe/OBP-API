@@ -1,5 +1,8 @@
 package code.api.v4_0_0
 
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+
 import code.api.Constant._
 import code.api.ResourceDocs1_4_0.SwaggerDefinitionsJSON
 import code.api.ResourceDocs1_4_0.SwaggerDefinitionsJSON.createViewJson
@@ -10,8 +13,9 @@ import code.api.v1_2_1._
 import code.api.v1_4_0.JSONFactory1_4_0.TransactionRequestAccountJsonV140
 import code.api.v2_0_0.{BasicAccountsJSON, TransactionRequestBodyJsonV200}
 import code.api.v2_1_0.{TransactionRequestWithChargeJSON210, TransactionRequestWithChargeJSONs210}
-import code.api.v3_0_0.{CustomerAttributeResponseJsonV300, TransactionJsonV300, TransactionsJsonV300, ViewJsonV300}
+import code.api.v3_0_0.{CustomerAttributeResponseJsonV300, TransactionJsonV300, TransactionsJsonV300, UserJsonV300, ViewJsonV300}
 import code.api.v3_1_0._
+import code.consumer.Consumers
 import code.entitlement.Entitlement
 import code.metadata.comments.MappedComment
 import code.metadata.narrative.MappedNarrative
@@ -19,7 +23,7 @@ import code.metadata.transactionimages.MappedTransactionImage
 import code.metadata.wheretags.MappedWhereTag
 import code.setup.{APIResponse, DefaultUsers, ServerSetupWithTestData}
 import code.transactionattribute.MappedTransactionAttribute
-import com.openbankproject.commons.model.{AccountRoutingJsonV121, AmountOfMoneyJsonV121, CreateViewJson, UpdateViewJSON}
+import com.openbankproject.commons.model.{AccountId, AccountRoutingJsonV121, AmountOfMoneyJsonV121, BankId, CreateViewJson, UpdateViewJSON}
 import dispatch.Req
 import net.liftweb.json.Serialization.write
 import net.liftweb.mapper.By
@@ -85,6 +89,29 @@ trait V400ServerSetup extends ServerSetupWithTestData with DefaultUsers {
     val transactionRequests = response310.body.extract[TransactionRequestWithChargeJSONs210].transaction_requests_with_charges
     val randomPosition = nextInt(transactionRequests.size)
     transactionRequests(randomPosition)
+  }
+  
+  def getCurrentUserEndpoint(consumerAndToken: Option[(Consumer, Token)]): APIResponse = {
+    val requestCurrentUserNewStyle = baseRequest / "obp" / "v4.0.0" / "users" / "current"
+    makeGetRequest(requestCurrentUserNewStyle.GET <@(consumerAndToken))
+  }
+  
+  def setRateLimiting(consumerAndToken: Option[(Consumer, Token)], putJson: CallLimitPostJsonV400): APIResponse = {
+    val Some((c, _)) = consumerAndToken
+    val consumerId = Consumers.consumers.vend.getConsumerByConsumerKey(c.key).map(_.consumerId.get).getOrElse("")
+    Entitlement.entitlement.vend.addEntitlement("", resourceUser1.userId, ApiRole.CanSetCallLimits.toString)
+    val request400 = (v4_0_0_Request / "management" / "consumers" / consumerId / "consumer" / "call-limits").PUT <@(consumerAndToken)
+    makePutRequest(request400, write(putJson))
+  }  
+  def setRateLimitingWithoutRole(consumerAndToken: Option[(Consumer, Token)], putJson: CallLimitPostJsonV400): APIResponse = {
+    val Some((c, _)) = consumerAndToken
+    val consumerId = Consumers.consumers.vend.getConsumerByConsumerKey(c.key).map(_.consumerId.get).getOrElse("")
+    val request400 = (v4_0_0_Request / "management" / "consumers" / consumerId / "consumer" / "call-limits").PUT <@(consumerAndToken)
+    makePutRequest(request400, write(putJson))
+  }  
+  def setRateLimitingAnonymousAccess(putJson: CallLimitPostJsonV400): APIResponse = {
+    val request400 = (v4_0_0_Request / "management" / "consumers" / "some_consumer_id" / "consumer" / "call-limits").PUT
+    makePutRequest(request400, write(putJson))
   }
   
   def updateViewViaEndpoint(bankId: String, accountId: String, viewId: String, updateViewJson: UpdateViewJSON, consumerAndToken: Option[(Consumer, Token)]): ViewJsonV300 = {
@@ -188,6 +215,15 @@ trait V400ServerSetup extends ServerSetupWithTestData with DefaultUsers {
     val responseWithRole = makePostRequest(request400, write(postTransactionAttributeJsonV400))
     responseWithRole.code should equal(201)
     responseWithRole.body.extract[TransactionAttributeResponseJson].transaction_attribute_id
+  }
+
+  def createTransactionRequestAttributeEndpoint(bankId:String, accountId:String, transactionRequestId:String, consumerAndToken: Option[(Consumer, Token)]) = {
+    lazy val postTransactionRequestAttributeJsonV400 = SwaggerDefinitionsJSON.transactionRequestAttributeJsonV400
+    val request400 = (v4_0_0_Request / "banks" / bankId / "accounts"/ accountId /"transaction-requests" / transactionRequestId / "attribute").POST <@ (user1)
+    Entitlement.entitlement.vend.addEntitlement(bankId, resourceUser1.userId, canCreateTransactionRequestAttributeAtOneBank.toString())
+    val responseWithRole = makePostRequest(request400, write(postTransactionRequestAttributeJsonV400))
+    responseWithRole.code should equal(201)
+    responseWithRole.body.extract[TransactionRequestAttributeResponseJson].transaction_request_attribute_id
   }
 
   def grantUserAccessToViewViaEndpoint(bankId: String,
@@ -302,10 +338,10 @@ trait V400ServerSetup extends ServerSetupWithTestData with DefaultUsers {
     val bank = createBank(bankId)
     val addAccountJson1 = SwaggerDefinitionsJSON.createAccountRequestJsonV310
       .copy(user_id = resourceUser1.userId, balance = AmountOfMoneyJsonV121("EUR","0"),
-        account_routings = List(AccountRoutingJsonV121(Random.nextString(4), Random.nextString(10))))
+        account_routings = List(AccountRoutingJsonV121(Random.nextString(10), Random.nextString(10))))
     val addAccountJson2 = SwaggerDefinitionsJSON.createAccountRequestJsonV310
       .copy(user_id = resourceUser1.userId, balance = AmountOfMoneyJsonV121("EUR","0"),
-        account_routings = List(AccountRoutingJsonV121(Random.nextString(4), Random.nextString(10))))
+        account_routings = List(AccountRoutingJsonV121(Random.nextString(10), Random.nextString(10))))
     // Create from account
     val fromAccount = createAccountViaEndpoint(bank.bankId.value, addAccountJson1, user1)
     // Create to account
@@ -343,6 +379,40 @@ trait V400ServerSetup extends ServerSetupWithTestData with DefaultUsers {
       user1
     )
     (bank.bankId.value, fromAccount.account_id, transactionId)
+  }
+
+  def saveHistoricalTransactionViaEndpoint(fromBankId: BankId,
+                                          fromAccountId: AccountId,
+                                          toBankId: BankId,
+                                          toAccountId: AccountId,
+                                          amount: BigDecimal,
+                                          description: String,
+                                          consumerAndToken: Option[(Consumer, Token)]): PostHistoricalTransactionResponseJson = {
+    val dateTimeNow = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss'Z'"))
+    val historicalTransactionJson = PostHistoricalTransactionJson(
+      from = HistoricalTransactionAccountJsonV310(
+        bank_id = Some(fromBankId.value),
+        account_id = Some(fromAccountId.value),
+        counterparty_id = None
+      ),
+      to = HistoricalTransactionAccountJsonV310(
+        bank_id = Some(toBankId.value),
+        account_id = Some(toAccountId.value),
+        counterparty_id = None
+      ),
+      value = AmountOfMoneyJsonV121(
+        currency = "EUR",
+        amount = amount.toString()
+      ),
+      description = description,
+      posted = dateTimeNow,
+      completed = dateTimeNow,
+      `type` = "SEPA",
+      charge_policy = "SHARED"
+    )
+    val saveHistoricalTransactionRequest = (v4_0_0_Request / "management" / "historical" / "transactions").POST <@ (consumerAndToken)
+
+    makePostRequest(saveHistoricalTransactionRequest, write(historicalTransactionJson)).body.extract[PostHistoricalTransactionResponseJson]
   }
   
 }

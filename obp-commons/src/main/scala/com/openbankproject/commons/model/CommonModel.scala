@@ -641,12 +641,43 @@ case class PaymentAccount( //This is from berlinGroup
   iban: String
 )
 
+case class CancelPayment(canBeCancelled: Boolean, startSca: Option[Boolean])
+
 case class SepaCreditTransfers( //This is from berlinGroup
   debtorAccount: PaymentAccount,
   instructedAmount: AmountOfMoneyJsonV121,
   creditorAccount: PaymentAccount,
   creditorName: String
 )
+
+case class SepaCreditTransfersBerlinGroupV13( //This is from berlinGroup
+                                              endToEndIdentification:  Option[String] = None,
+                                              instructionIdentification:  Option[String] = None,
+                                              debtorName:  Option[String] = None,
+                                              debtorAccount: PaymentAccount,
+                                              debtorId: Option[String] = None,
+                                              ultimateDebtor: Option[String] = None,
+                                              instructedAmount: AmountOfMoneyJsonV121,
+                                              currencyOfTransfer: Option[String] = None,
+                                              exchangeRateInformation: Option[String] = None,
+                                              creditorAccount: PaymentAccount,
+                                              creditorAgent: Option[String] = None,
+                                              creditorAgentName: Option[String] = None,
+                                              creditorName: String,
+                                              creditorId: Option[String] = None,
+                                              creditorAddress: Option[String] = None,
+                                              creditorNameAndAddress: Option[String] = None,
+                                              ultimateCreditor: Option[String] = None,
+                                              purposeCode: Option[String] = None,
+                                              chargeBearer: Option[String] = None,
+                                              serviceLevel: Option[String] = None,
+                                              remittanceInformationUnstructured: Option[String] = None,
+                                              remittanceInformationUnstructuredArray: Option[String] = None,
+                                              remittanceInformationStructured: Option[String] = None,
+                                              remittanceInformationStructuredArray: Option[String] = None,
+                                              requestedExecutionDate: Option[String] = None,
+                                              requestedExecutionTime: Option[String] = None
+                                            )
 
 case class TransactionRequestBodyAllTypes (
                                             @optional

@@ -16,7 +16,7 @@ import code.api.v3_0_0.JSONFactory300.createBranchJsonV300
 import code.api.v3_0_0.custom.JSONFactoryCustom300
 import code.api.v3_0_0.{LobbyJsonV330, _}
 import code.api.v3_1_0.{AccountBalanceV310, AccountsBalancesV310Json, BadLoginStatusJson, ContactDetailsJson, CustomerWithAttributesJsonV310, InviteeJson, ObpApiLoopbackJson, PhysicalCardWithAttributesJsonV310, PutUpdateCustomerEmailJsonV310, _}
-import code.api.v4_0_0.{APIInfoJson400, AccountTagJSON, AccountTagsJSON, AttributeDefinitionJsonV400, AttributeDefinitionResponseJsonV400, AttributeDefinitionsResponseJsonV400, BankAccountRoutingJson, BankJson400, BanksJson400, ChallengeAnswerJson400, ChallengeJsonV400, CounterpartiesJson400, CounterpartyJson400, CounterpartyWithMetadataJson400, CustomerAttributeJsonV400, CustomerAttributesResponseJson, DirectDebitJsonV400, EnergySource400, HostedAt400, HostedBy400, LogoutLinkJson, ModeratedAccountJSON400, ModeratedCoreAccountJsonV400, ModeratedFirehoseAccountJsonV400, ModeratedFirehoseAccountsJsonV400, PostAccountAccessJsonV400, PostAccountTagJSON, PostCounterpartyJson400, PostCustomerPhoneNumberJsonV400, PostDirectDebitJsonV400, PostStandingOrderJsonV400, PostViewJsonV400, RefundJson, RevokedJsonV400, SettlementAccountJson, SettlementAccountRequestJson, SettlementAccountResponseJson, SettlementAccountsJson, StandingOrderJsonV400, TransactionAttributeJsonV400, TransactionAttributeResponseJson, TransactionAttributesResponseJson, TransactionRequestBodyRefundJsonV400, TransactionRequestBodySEPAJsonV400, TransactionRequestReasonJsonV400, TransactionRequestRefundFrom, TransactionRequestRefundTo, TransactionRequestWithChargeJSON400, UpdateAccountJsonV400, UserLockStatusJson, When}
+import code.api.v4_0_0.{APIInfoJson400, AccountBalanceJsonV400, AccountTagJSON, AccountTagsJSON, AccountsBalancesJsonV400, ApiCollectionEndpointJson400, ApiCollectionEndpointsJson400, ApiCollectionJson400, ApiCollectionsJson400, AttributeDefinitionJsonV400, AttributeDefinitionResponseJsonV400, AttributeDefinitionsResponseJsonV400, AttributeJsonV400, BalanceJsonV400, BankAccountRoutingJson, BankJson400, BanksJson400, CallLimitPostJsonV400, ChallengeAnswerJson400, ChallengeJsonV400, CounterpartiesJson400, CounterpartyJson400, CounterpartyWithMetadataJson400, CustomerAttributeJsonV400, CustomerAttributesResponseJson, DirectDebitJsonV400, DoubleEntryTransactionJson, EnergySource400, HostedAt400, HostedBy400, IbanCheckerJsonV400, IbanDetailsJsonV400, JsonSchemaV400, JsonValidationV400, LogoutLinkJson, ModeratedAccountJSON400, ModeratedCoreAccountJsonV400, ModeratedFirehoseAccountJsonV400, ModeratedFirehoseAccountsJsonV400, PostAccountAccessJsonV400, PostAccountTagJSON, PostApiCollectionEndpointJson400, PostApiCollectionJson400, PostCounterpartyJson400, PostCustomerPhoneNumberJsonV400, PostDirectDebitJsonV400, PostRevokeGrantAccountAccessJsonV400, PostStandingOrderJsonV400, PostViewJsonV400, Properties, RefundJson, RevokedJsonV400, SettlementAccountJson, SettlementAccountRequestJson, SettlementAccountResponseJson, SettlementAccountsJson, StandingOrderJsonV400, TransactionAttributeJsonV400, TransactionAttributeResponseJson, TransactionAttributesResponseJson, TransactionBankAccountJson, TransactionRequestAttributeJsonV400, TransactionRequestAttributeResponseJson, TransactionRequestAttributesResponseJson, TransactionRequestBankAccountJson, TransactionRequestBodyRefundJsonV400, TransactionRequestBodySEPAJsonV400, TransactionRequestReasonJsonV400, TransactionRequestRefundFrom, TransactionRequestRefundTo, TransactionRequestWithChargeJSON400, UpdateAccountJsonV400, UserLockStatusJson, When, XxxId}
 import code.api.v3_1_0.{AccountBalanceV310, AccountsBalancesV310Json, BadLoginStatusJson, ContactDetailsJson, InviteeJson, ObpApiLoopbackJson, PhysicalCardWithAttributesJsonV310, PutUpdateCustomerEmailJsonV310, _}
 import code.branches.Branches.{Branch, DriveUpString, LobbyString}
 import code.consent.ConsentStatus
@@ -81,6 +81,7 @@ object SwaggerDefinitionsJSON {
 
   val accountHeld = AccountHeld(
     id = "5995d6a2-01b3-423c-a173-5481df49bdaf",
+    label = "My Account",
     bankId = "gh.29.uk",
     number = "String",
     accountRoutings = List(accountRouting)
@@ -380,6 +381,13 @@ object SwaggerDefinitionsJSON {
   )
 
     val sepaCreditTransfers = SepaCreditTransfers(
+      debtorAccount = PaymentAccount(iban = "12345"),
+      instructedAmount = amountOfMoneyJsonV121,
+      creditorAccount = PaymentAccount(iban = "54321"),
+      creditorName = "John Miles"
+    )
+  
+    val sepaCreditTransfersBerlinGroupV13 = SepaCreditTransfersBerlinGroupV13(
       debtorAccount = PaymentAccount(iban = "12345"),
       instructedAmount = amountOfMoneyJsonV121,
       creditorAccount = PaymentAccount(iban = "54321"),
@@ -830,6 +838,32 @@ object SwaggerDefinitionsJSON {
 
   val banksJSON400 = BanksJson400(
     banks = List(bankJson400)
+  )
+  
+  val ibanCheckerPostJsonV400 = IbanAddress("DE75512108001245126199")
+  
+  val ibanCheckerJsonV400 = IbanCheckerJsonV400(
+    true, 
+    Some(
+      IbanDetailsJsonV400(
+        bank_routings = List(BankRoutingJsonV121("BIC", "SOGEDEFF")) ,
+        bank = "Societe Generale",
+        branch = "",
+        address = "Neue mainzer strasse 46-50",
+        city = "Frankfurt am Main",
+        postcode = "60311",
+        phone = "",
+        country = "Germany",
+        attributes = List(
+          AttributeJsonV400("country_iso", ""),
+          AttributeJsonV400("sepa_credit_transfer", "YES"),
+          AttributeJsonV400("sepa_direct_debit", "YES"),
+          AttributeJsonV400("sepa_sdd_core", "YES"),
+          AttributeJsonV400("sepa_b2b", "YES"),
+          AttributeJsonV400("sepa_card_clearing", "YES"),
+        )
+      )
+    )
   )
 
   val accountHolderJSON = AccountHolderJSON(
@@ -2629,8 +2663,16 @@ object SwaggerDefinitionsJSON {
 
   val putProductCollectionsV310 = PutProductCollectionsV310("A", List("B", "C", "D"))
 
-
-
+  val postOrPutJsonSchemaV400 = JsonSchemaV400(
+    "http://json-schema.org/draft-07/schema",
+    "The demo json-schema",
+    "The demo schema",
+    List("xxx_id"),
+    "object",
+    Properties(XxxId("string", 2, 50,List("xxx_id_demo_value"))),
+    true
+  )
+  val responseJsonSchema = JsonValidationV400("OBPv4.0.0-createXxx", postOrPutJsonSchemaV400)
 
 
   val fxJsonV220 = FXRateJsonV220(
@@ -2992,6 +3034,7 @@ object SwaggerDefinitionsJSON {
   
   val accountHeldJson  = AccountHeldJson(
     id = "12314",
+    label = "My Account",
     bank_id=  "123",
     number = "123",
     account_routings = List(accountRoutingJsonV121)
@@ -3243,6 +3286,19 @@ object SwaggerDefinitionsJSON {
   val callLimitPostJson = CallLimitPostJson(
     from_date = DateWithDayExampleObject,
     to_date = DateWithDayExampleObject,
+    per_second_call_limit = "-1",
+    per_minute_call_limit = "-1",
+    per_hour_call_limit = "-1",
+    per_day_call_limit ="-1",
+    per_week_call_limit = "-1",
+    per_month_call_limit = "-1"
+  )
+  val callLimitPostJsonV400 = CallLimitPostJsonV400(
+    from_date = DateWithDayExampleObject,
+    to_date = DateWithDayExampleObject,
+    api_version = None,
+    api_name = None,
+    bank_id = None,
     per_second_call_limit = "-1",
     per_minute_call_limit = "-1",
     per_hour_call_limit = "-1",
@@ -3595,12 +3651,10 @@ object SwaggerDefinitionsJSON {
     bank_id= bankIdExample.value,
     label= labelExample.value,
     number= accountNumberExample.value,
-    owners =  List(userJSONV121),
     product_code= accountTypeExample.value,
     balance = amountOfMoneyJsonV121,
     account_routings = List(accountRoutingJsonV121),
-    views_basic = List(viewBasicV300),
-    tags = List(accountTagJSON)
+    views_basic = List(viewIdExample.value)
   )
 
   val moderatedAccountJSON400 = ModeratedAccountJSON400(
@@ -3711,6 +3765,19 @@ object SwaggerDefinitionsJSON {
     overall_balance = amountOfMoney,
     overall_balance_date = DateWithMsExampleObject
   )
+
+
+  val accountBalanceV400 = AccountBalanceJsonV400(
+    account_id = accountIdExample.value,
+    label = labelExample.value,
+    bank_id = bankIdExample.value,
+    account_routings = List(accountRouting),
+    balances = List(BalanceJsonV400(`type` = "", currency = "EUR", amount = "10"))
+  )
+
+  val accountBalancesV400Json = AccountsBalancesJsonV400(
+    accounts = List(accountBalanceV400)
+  )
   
   val postDirectDebitJsonV400 = PostDirectDebitJsonV400(
     customer_id = customerIdExample.value,
@@ -3802,8 +3869,28 @@ object SwaggerDefinitionsJSON {
     settlement_accounts = List(settlementAccountJson)
   )
 
+  val doubleEntryTransactionJson = DoubleEntryTransactionJson(
+    transaction_request = TransactionRequestBankAccountJson(
+      bank_id = bankIdExample.value,
+      account_id = accountIdExample.value,
+      transaction_request_id = transactionRequestIdExample.value
+    ),
+    debit_transaction = TransactionBankAccountJson(
+      bank_id = bankIdExample.value,
+      account_id = accountIdExample.value,
+      transaction_id = transactionIdExample.value
+    ),
+    credit_transaction = TransactionBankAccountJson(
+      bank_id = bankIdExample.value,
+      account_id = accountIdExample.value,
+      transaction_id = transactionIdExample.value
+    )
+  )
+
   val postAccountAccessJsonV400 = PostAccountAccessJsonV400(userIdExample.value, PostViewJsonV400(ExampleValue.viewIdExample.value, true))
   val revokedJsonV400 = RevokedJsonV400(true)
+
+  val postRevokeGrantAccountAccessJsonV400 = PostRevokeGrantAccountAccessJsonV400(List("ReadAccountsBasic"))
 
   val transactionRequestRefundTo = TransactionRequestRefundTo(
     bank_id = Some(bankIdExample.value),
@@ -3814,7 +3901,6 @@ object SwaggerDefinitionsJSON {
   val transactionRequestRefundFrom = TransactionRequestRefundFrom(
     counterparty_id = counterpartyIdExample.value
   )
-
   val transactionRequestBodyRefundJsonV400 = TransactionRequestBodyRefundJsonV400(
     to = Some(transactionRequestRefundTo),
     from = Some(transactionRequestRefundFrom),
@@ -3847,6 +3933,23 @@ object SwaggerDefinitionsJSON {
     name = transactionAttributeNameExample.value,
     `type` = transactionAttributeTypeExample.value,
     value = transactionAttributeValueExample.value
+  )
+
+  val transactionRequestAttributeResponseJson = TransactionRequestAttributeResponseJson(
+    transaction_request_attribute_id = transactionRequestAttributeIdExample.value,
+    name = transactionRequestAttributeNameExample.value,
+    `type` = transactionRequestAttributeTypeExample.value,
+    value = transactionRequestAttributeValueExample.value
+  )
+  
+  val transactionRequestAttributeJsonV400 = TransactionRequestAttributeJsonV400(
+    name = transactionRequestAttributeNameExample.value,
+    `type` = transactionRequestAttributeTypeExample.value,
+    value = transactionRequestAttributeValueExample.value
+  )
+
+  val transactionRequestAttributesResponseJson = TransactionRequestAttributesResponseJson(
+    transaction_request_attributes = List(transactionRequestAttributeResponseJson)
   )
   
   val templateAttributeDefinitionJsonV400 = AttributeDefinitionJsonV400(
@@ -3905,7 +4008,18 @@ object SwaggerDefinitionsJSON {
   )    
   val cardAttributeDefinitionsResponseJsonV400 = AttributeDefinitionsResponseJsonV400(
     attributes = List(cardAttributeDefinitionResponseJsonV400)
-  )    
+  )
+
+  val transactionRequestAttributeDefinitionJsonV400 =
+    templateAttributeDefinitionJsonV400.copy(category = AttributeCategory.TransactionRequest.toString)
+
+  val transactionRequestAttributeDefinitionResponseJsonV400 =
+    templateAttributeDefinitionResponseJsonV400.copy(category = AttributeCategory.TransactionRequest.toString)
+
+  val transactionRequestAttributeDefinitionsResponseJsonV400 = AttributeDefinitionsResponseJsonV400(
+    attributes = List(transactionRequestAttributeDefinitionResponseJsonV400)
+  )
+  
   val accountAttributeDefinitionsResponseJsonV400 = AttributeDefinitionsResponseJsonV400(
     attributes = List(accountAttributeDefinitionResponseJsonV400)
   )    
@@ -3934,6 +4048,17 @@ object SwaggerDefinitionsJSON {
     challenges = List(challengeJsonV400),
     charge = transactionRequestChargeJsonV200
   )
+  
+  val postApiCollectionJson400 = PostApiCollectionJson400(apiCollectionNameExample.value, true)
+  
+  val apiCollectionJson400 = ApiCollectionJson400(apiCollectionIdExample.value, userIdExample.value, apiCollectionNameExample.value, true)
+  val apiCollectionsJson400 = ApiCollectionsJson400(List(apiCollectionJson400))
+
+  val postApiCollectionEndpointJson400 = PostApiCollectionEndpointJson400(operationIdExample.value)
+
+  val apiCollectionEndpointJson400 = ApiCollectionEndpointJson400(apiCollectionEndpointIdExample.value, apiCollectionIdExample.value, operationIdExample.value)
+  val apiCollectionEndpointsJson400 = ApiCollectionEndpointsJson400(List(apiCollectionEndpointJson400))
+  
   //The common error or success format.
   //Just some helper format to use in Json 
   case class NotSupportedYet()

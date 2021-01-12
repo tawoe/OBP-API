@@ -38,11 +38,14 @@ import code.api.v2_0_0.TransactionRequestChargeJsonV200
 import code.api.v2_1_0.{IbanJson, JSONFactory210, PostCounterpartyBespokeJson, ResourceUserJSON}
 import code.api.v2_2_0.CounterpartyMetadataJson
 import code.api.v3_0_0.JSONFactory300.{createAccountRoutingsJSON, createAccountRulesJSON}
-import code.api.v3_0_0.{AccountRuleJsonV300, CustomerAttributeResponseJsonV300, ViewBasicV300}
-import code.api.v3_1_0.AccountAttributeResponseJson
+import code.api.v3_0_0.{AccountRuleJsonV300, CustomerAttributeResponseJsonV300}
+import code.api.v3_1_0.{AccountAttributeResponseJson, RedisCallLimitJson}
 import code.api.v3_1_0.JSONFactory310.createAccountAttributeJson
 import code.entitlement.Entitlement
 import code.model.{Consumer, ModeratedBankAccount, ModeratedBankAccountCore}
+import code.apicollectionendpoint.ApiCollectionEndpointTrait
+import code.apicollection.ApiCollectionTrait
+import code.ratelimiting.RateLimiting
 import code.standingorders.StandingOrderTrait
 import code.transactionrequests.TransactionRequests.TransactionChallengeTypes
 import code.userlocks.UserLocks
@@ -50,6 +53,36 @@ import com.openbankproject.commons.model.{DirectDebitTrait, _}
 import net.liftweb.common.{Box, Full}
 
 import scala.collection.immutable.List
+
+
+case class CallLimitPostJsonV400(
+                                  from_date : Date,
+                                  to_date : Date,
+                                  api_version: Option[String],
+                                  api_name: Option[String],
+                                  bank_id: Option[String],
+                                  per_second_call_limit : String,
+                                  per_minute_call_limit : String,
+                                  per_hour_call_limit : String,
+                                  per_day_call_limit : String,
+                                  per_week_call_limit : String,
+                                  per_month_call_limit : String
+                                )
+
+case class CallLimitJsonV400(
+                             from_date: Date,
+                             to_date: Date,
+                             api_version: Option[String],
+                             api_name: Option[String],
+                             bank_id: Option[String],
+                             per_second_call_limit: String,
+                             per_minute_call_limit: String,
+                             per_hour_call_limit: String,
+                             per_day_call_limit: String,
+                             per_week_call_limit: String,
+                             per_month_call_limit: String,
+                             current_state: Option[RedisCallLimitJson]
+                           )
 
 case class BankJson400(
                         id: String,
@@ -115,12 +148,10 @@ case class ModeratedCoreAccountJsonV400(
                                          bank_id: String,
                                          label: String,
                                          number: String,
-                                         owners: List[UserJSONV121],
                                          product_code: String,
                                          balance: AmountOfMoneyJsonV121,
                                          account_routings: List[AccountRoutingJsonV121],
-                                         views_basic: List[ViewBasicV300],
-                                         tags: List[AccountTagJSON]
+                                         views_basic: List[String]
                                        )
 
 case class ModeratedFirehoseAccountJsonV400(
@@ -181,6 +212,18 @@ case class PostAccountTagJSON(
 
 case class UpdateAccountJsonV400(label : String)
 
+case class AccountsBalancesJsonV400(accounts:List[AccountBalanceJsonV400])
+
+case class BalanceJsonV400(`type`: String, currency: String, amount: String)
+
+case class AccountBalanceJsonV400(
+                                   account_id: String,
+                                   bank_id: String,
+                                   account_routings: List[AccountRouting],
+                                   label: String,
+                                   balances: List[BalanceJsonV400]
+                                 )
+
 case class PostCustomerPhoneNumberJsonV400(mobile_phone_number: String)
 case class PostDirectDebitJsonV400(customer_id: String,
                                    user_id: String,
@@ -227,6 +270,7 @@ case class StandingOrderJsonV400(standing_order_id: String,
                                  active: Boolean)
 case class PostViewJsonV400(view_id: String, is_system: Boolean)
 case class PostAccountAccessJsonV400(user_id: String, view: PostViewJsonV400)
+case class PostRevokeGrantAccountAccessJsonV400(views: List[String])
 case class RevokedJsonV400(revoked: Boolean)
 
 case class TransactionRequestBodySEPAJsonV400(
@@ -305,12 +349,30 @@ case class TransactionAttributesResponseJson(
   transaction_attributes: List[TransactionAttributeResponseJson]
 )
 
+case class TransactionRequestAttributeJsonV400(
+  name: String,
+  `type`: String,
+  value: String,
+)
+
+case class TransactionRequestAttributeResponseJson(
+  transaction_request_attribute_id: String,
+  name: String,
+  `type`: String,
+  value: String
+)
+
+case class TransactionRequestAttributesResponseJson(
+  transaction_request_attributes: List[TransactionRequestAttributeResponseJson]
+)
+
 case class ConsumerJson(consumer_id: String,
                         key: String,
                         secret: String,
                         app_name: String,
                         app_type: String,
                         description: String,
+                        client_certificate: String,
                         developer_email: String,
                         redirect_url: String,
                         created_by_user_id: String,
@@ -456,6 +518,8 @@ case class CounterpartiesJson400(
                                    counterparties: List[CounterpartyJson400]
                                  )
 
+case class PutConsentStatusJsonV400(status: String)
+case class PutConsentUserJsonV400(user_id: String)
 case class BankAccountRoutingJson(
                                  bank_id: Option[String],
                                  account_routing: AccountRoutingJsonV121
@@ -468,8 +532,110 @@ case class ChallengeAnswerJson400 (
                                  additional_information: Option[String] = None
                                )
 
+case class ApiCollectionJson400 (
+  api_collection_id: String,
+  user_id: String,
+  api_collection_name: String,
+  is_sharable: Boolean
+)
+case class ApiCollectionsJson400 (
+  api_collections: List[ApiCollectionJson400] 
+)
+
+case class PostApiCollectionJson400(
+  api_collection_name: String,
+  is_sharable: Boolean
+)
+
+case class ApiCollectionEndpointJson400 (
+  api_collection_endpoint_id: String,
+  api_collection_id: String,
+  operation_id: String
+)
+
+case class ApiCollectionEndpointsJson400(
+  api_collection_endpoints: List[ApiCollectionEndpointJson400]
+)
+
+case class PostApiCollectionEndpointJson400(
+  operation_id: String
+)
+// Validation related START
+case class JsonSchemaV400(
+    $schema: String,
+    description: String,
+    title: String,
+    required: List[String],
+    `type`: String,
+    properties: Properties,
+    additionalProperties: Boolean
+  )
+  case class Properties (xxx_id: XxxId)
+  case class XxxId (
+    `type`: String,
+    minLength: Int,
+    maxLength: Int,
+    examples: List[String]
+  )
+case class JsonValidationV400(operation_id: String, json_schema: JsonSchemaV400)
+// Validation related END
+
+
+case class IbanCheckerJsonV400(
+                                is_valid: Boolean,
+                                details: Option[IbanDetailsJsonV400]
+                              )
+
+case class AttributeJsonV400(name: String, value: String)
+case class IbanDetailsJsonV400(bank_routings: List[BankRoutingJsonV121],
+                               bank: String,
+                               branch: String,
+                               address: String,
+                               city: String,
+                               postcode: String,
+                               phone: String,
+                               country: String,
+                               attributes: List[AttributeJsonV400]
+                              )
+
+case class DoubleEntryTransactionJson(
+                                         transaction_request: TransactionRequestBankAccountJson,
+                                         debit_transaction: TransactionBankAccountJson,
+                                         credit_transaction: TransactionBankAccountJson
+                                         )
+
+case class TransactionRequestBankAccountJson(
+                                        bank_id: String,
+                                        account_id: String,
+                                        transaction_request_id: String
+                                        )
+
+case class TransactionBankAccountJson(
+                                  bank_id: String,
+                                  account_id: String,
+                                  transaction_id: String
+                                  )
 
 object JSONFactory400 {
+
+  def createCallsLimitJson(rateLimiting: RateLimiting) : CallLimitJsonV400 = {
+    CallLimitJsonV400(
+      rateLimiting.fromDate,
+      rateLimiting.toDate,
+      rateLimiting.apiVersion,
+      rateLimiting.apiName,
+      rateLimiting.bankId,
+      rateLimiting.perSecondCallLimit.toString,
+      rateLimiting.perMinuteCallLimit.toString,
+      rateLimiting.perHourCallLimit.toString,
+      rateLimiting.perDayCallLimit.toString,
+      rateLimiting.perWeekCallLimit.toString,
+      rateLimiting.perMonthCallLimit.toString,
+      None
+    )
+
+  }
+  
   def createBankJSON400(bank: Bank): BankJson400 = {
     val obp = BankRoutingJsonV121("OBP", bank.bankId.value)
     val bic = BankRoutingJsonV121("BIC", bank.swiftBic)
@@ -583,19 +749,16 @@ object JSONFactory400 {
 
   
   def createNewCoreBankAccountJson(account : ModeratedBankAccountCore, 
-                                   availableViews: List[View],
-                                   tags: List[TransactionTag]) : ModeratedCoreAccountJsonV400 =  {
+                                   availableViews: List[View]) : ModeratedCoreAccountJsonV400 =  {
     ModeratedCoreAccountJsonV400 (
       account.accountId.value,
       stringOrNull(account.bankId.value),
       stringOptionOrNull(account.label),
       stringOptionOrNull(account.number),
-      createOwnersJSON(account.owners.getOrElse(Set()),""),
       stringOptionOrNull(account.accountType),
       createAmountOfMoneyJSON(account.currency.getOrElse(""), account.balance.getOrElse("")),
       createAccountRoutingsJSON(account.accountRoutings),
-      views_basic = availableViews.map(view => code.api.v3_0_0.ViewBasicV300(id = view.viewId.value, short_name = view.name, description = view.description, is_public = view.isPublic)),
-      tags.map(createAccountTagJSON)
+      views_basic = availableViews.map(view => view.viewId.value)
     )
   }
 
@@ -735,6 +898,24 @@ object JSONFactory400 {
     )))
   }
 
+  def createTransactionRequestAttributeJson(transactionRequestAttribute: TransactionRequestAttributeTrait) : TransactionRequestAttributeResponseJson = {
+    TransactionRequestAttributeResponseJson(
+      transaction_request_attribute_id = transactionRequestAttribute.transactionRequestAttributeId,
+      name = transactionRequestAttribute.name,
+      `type` = transactionRequestAttribute.attributeType.toString,
+      value = transactionRequestAttribute.value
+    )
+  }
+
+  def createTransactionRequestAttributesJson(transactionRequestAttributes: List[TransactionRequestAttributeTrait]) : TransactionRequestAttributesResponseJson = {
+    TransactionRequestAttributesResponseJson (transactionRequestAttributes.map( transactionRequestAttribute => TransactionRequestAttributeResponseJson(
+      transaction_request_attribute_id = transactionRequestAttribute.transactionRequestAttributeId,
+      name = transactionRequestAttribute.name,
+      `type` = transactionRequestAttribute.attributeType.toString,
+      value = transactionRequestAttribute.value
+    )))
+  }
+
   def createConsumerJSON(c: Consumer, user: Box[User]): ConsumerJson = {
 
     val resourceUserJSON = user match {
@@ -759,7 +940,8 @@ object JSONFactory400 {
       created_by_user_id =c.createdByUserId.get,
       created_by_user =resourceUserJSON,
       enabled=c.isActive.get,
-      created=c.createdAt.get
+      created=c.createdAt.get,
+      client_certificate=c.clientCertificate.get
     )
   }
 
@@ -847,6 +1029,97 @@ object JSONFactory400 {
 
   def createCounterpartiesJson400(counterparties: List[CounterpartyTrait]): CounterpartiesJson400 =
     CounterpartiesJson400(counterparties.map(createCounterpartyJson400))
+
+  def createBalancesJson(accountsBalances: AccountsBalances) = {
+    AccountsBalancesJsonV400(
+      accounts = accountsBalances.accounts.map(
+        account => AccountBalanceJsonV400(
+          account_id = account.id,
+          bank_id = account.bankId,
+          account_routings = account.accountRoutings,
+          label = account.label,
+          balances = List(
+            BalanceJsonV400(`type` = "", currency = account.balance.currency, amount = account.balance.amount)
+          )
+        )
+      )
+    )
+  }
+
+  def createApiCollectionJsonV400(apiCollection: ApiCollectionTrait) = {
+      ApiCollectionJson400(
+        apiCollection.apiCollectionId,
+        apiCollection.userId,
+        apiCollection.apiCollectionName,
+        apiCollection.isSharable,
+      )
+  }
+  def createIbanCheckerJson(iban: IbanChecker): IbanCheckerJsonV400 = {
+    val details = iban.details.map(
+      i =>
+        IbanDetailsJsonV400(
+          bank_routings = List(BankRoutingJsonV121("BIC", i.bic)),
+          bank = i.bank,
+          branch = i.branch,
+          address = i.address,
+          city = i.city,
+          postcode = i.zip,
+          phone = i.phone,
+          country = i.country,
+          attributes = List(
+            AttributeJsonV400("country_iso", i.countryIso),
+            AttributeJsonV400("sepa_credit_transfer", i.sepaDirectDebit),
+            AttributeJsonV400("sepa_direct_debit", i.sepaSddCore),
+            AttributeJsonV400("sepa_sdd_core", i.sepaSddCore),
+            AttributeJsonV400("sepa_b2b", i.sepaB2b),
+            AttributeJsonV400("sepa_card_clearing", i.sepaCardClearing),
+          )
+        )
+    )
+    IbanCheckerJsonV400(
+      iban.isValid,
+      details
+    )
+  }
+
+  def createDoubleEntryTransactionJson(doubleEntryBookTransaction: DoubleEntryTransaction): DoubleEntryTransactionJson =
+    DoubleEntryTransactionJson(
+      transaction_request = (for {
+        transactionRequestBankId <- doubleEntryBookTransaction.transactionRequestBankId
+        transactionRequestAccountId <- doubleEntryBookTransaction.transactionRequestAccountId
+        transactionRequestId <- doubleEntryBookTransaction.transactionRequestId
+      } yield TransactionRequestBankAccountJson(
+        transactionRequestBankId.value,
+        transactionRequestAccountId.value,
+        transactionRequestId.value
+      )).orNull,
+      debit_transaction = TransactionBankAccountJson(
+        doubleEntryBookTransaction.debitTransactionBankId.value,
+        doubleEntryBookTransaction.debitTransactionAccountId.value,
+        doubleEntryBookTransaction.debitTransactionId.value
+      ),
+      credit_transaction = TransactionBankAccountJson(
+        doubleEntryBookTransaction.creditTransactionBankId.value,
+        doubleEntryBookTransaction.creditTransactionAccountId.value,
+        doubleEntryBookTransaction.creditTransactionId.value
+      )
+    )
+  
+  def createApiCollectionsJsonV400(apiCollections: List[ApiCollectionTrait]) = {
+    ApiCollectionsJson400(apiCollections.map(apiCollection => createApiCollectionJsonV400(apiCollection)))
+  }
+
+  def createApiCollectionEndpointJsonV400(apiCollectionEndpoint: ApiCollectionEndpointTrait) = {
+    ApiCollectionEndpointJson400(
+      apiCollectionEndpoint.apiCollectionEndpointId,
+      apiCollectionEndpoint.apiCollectionId,
+      apiCollectionEndpoint.operationId
+    )
+  }
+
+  def createApiCollectionEndpointsJsonV400(apiCollectionEndpoints: List[ApiCollectionEndpointTrait]) = {
+    ApiCollectionEndpointsJson400(apiCollectionEndpoints.map(apiCollectionEndpoint => createApiCollectionEndpointJsonV400(apiCollectionEndpoint)))
+  }
   
 }
 

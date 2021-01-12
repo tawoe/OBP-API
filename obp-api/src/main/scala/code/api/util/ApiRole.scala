@@ -248,6 +248,12 @@ object ApiRole {
   case class CanGetCounterparty(requiresBankId: Boolean = true) extends ApiRole
   lazy val canGetCounterparty = CanGetCounterparty()
 
+  case class CanGetApiCollection(requiresBankId: Boolean = false) extends ApiRole
+  lazy val canGetApiCollection = CanGetApiCollection()
+
+  case class CanGetApiCollections(requiresBankId: Boolean = false) extends ApiRole
+  lazy val canGetApiCollections = CanGetApiCollections()
+  
   case class CanGetCounterpartyAtAnyBank(requiresBankId: Boolean = false) extends ApiRole
   lazy val canGetCounterpartyAtAnyBank = CanGetCounterpartyAtAnyBank()
   
@@ -528,6 +534,24 @@ object ApiRole {
   case class CanGetTransactionAttributeAtOneBank(requiresBankId: Boolean = true) extends ApiRole
   lazy val canGetTransactionAttributeAtOneBank = CanGetTransactionAttributeAtOneBank()
 
+  case class CanCreateTransactionRequestAttributeAtOneBank(requiresBankId: Boolean = true) extends ApiRole
+  lazy val canCreateTransactionRequestAttributeAtOneBank = CanCreateTransactionRequestAttributeAtOneBank()
+
+  case class CanUpdateTransactionRequestAttributeAtOneBank(requiresBankId: Boolean = true) extends ApiRole
+  lazy val canUpdateTransactionRequestAttributeAtOneBank = CanUpdateTransactionRequestAttributeAtOneBank()
+
+  case class CanDeleteTransactionRequestAttributeAtOneBank(requiresBankId: Boolean = true) extends ApiRole
+  lazy val canDeleteTransactionRequestAttributeAtOneBank = CanDeleteTransactionRequestAttributeAtOneBank()
+
+  case class CanGetTransactionRequestAttributesAtOneBank(requiresBankId: Boolean = true) extends ApiRole
+  lazy val canGetTransactionRequestAttributesAtOneBank = CanGetTransactionRequestAttributesAtOneBank()
+
+  case class CanGetTransactionRequestAttributeAtOneBank(requiresBankId: Boolean = true) extends ApiRole
+  lazy val canGetTransactionRequestAttributeAtOneBank = CanGetTransactionRequestAttributeAtOneBank()
+
+  case class CanGetDoubleEntryTransactionAtOneBank(requiresBankId: Boolean = true) extends ApiRole
+  lazy val canGetDoubleEntryTransactionAtOneBank = CanGetDoubleEntryTransactionAtOneBank()
+
   case class CanReadResourceDoc(requiresBankId: Boolean = false) extends ApiRole
   lazy val canReadResourceDoc = CanReadResourceDoc()
   
@@ -570,6 +594,15 @@ object ApiRole {
   case class CanGetTransactionAttributeDefinitionAtOneBank(requiresBankId: Boolean = true) extends ApiRole
   lazy val canGetTransactionAttributeDefinitionAtOneBank = CanGetTransactionAttributeDefinitionAtOneBank() 
   
+  case class CanCreateTransactionRequestAttributeDefinitionAtOneBank(requiresBankId: Boolean = true) extends ApiRole
+  lazy val canCreateTransactionRequestAttributeDefinitionAtOneBank = CanCreateTransactionRequestAttributeDefinitionAtOneBank()
+
+  case class CanDeleteTransactionRequestAttributeDefinitionAtOneBank(requiresBankId: Boolean = true) extends ApiRole
+  lazy val canDeleteTransactionRequestAttributeDefinitionAtOneBank = CanDeleteTransactionRequestAttributeDefinitionAtOneBank()
+
+  case class CanGetTransactionRequestAttributeDefinitionAtOneBank(requiresBankId: Boolean = true) extends ApiRole
+  lazy val canGetTransactionRequestAttributeDefinitionAtOneBank = CanGetTransactionRequestAttributeDefinitionAtOneBank()
+
   case class CanGetCardAttributeDefinitionAtOneBank(requiresBankId: Boolean = true) extends ApiRole
   lazy val canGetCardAttributeDefinitionAtOneBank = CanGetCardAttributeDefinitionAtOneBank()
 
@@ -587,6 +620,33 @@ object ApiRole {
   
   case class CanDeleteProductCascade(requiresBankId: Boolean = true) extends ApiRole
   lazy val canDeleteProductCascade = CanDeleteProductCascade()
+
+  case class CanGetConnectorEndpoint(requiresBankId: Boolean = false) extends ApiRole
+  lazy val canGetConnectorEndpoint = CanGetConnectorEndpoint()
+
+  case class CanCreateJsonSchemaValidation(requiresBankId: Boolean = false) extends ApiRole
+  lazy val canCreateJsonSchemaValidation = CanCreateJsonSchemaValidation()
+
+  case class CanUpdateJsonSchemaValidation(requiresBankId: Boolean = false) extends ApiRole
+  lazy val canUpdateJsonSchemaValidation = CanUpdateJsonSchemaValidation()
+
+  case class CanDeleteJsonSchemaValidation(requiresBankId: Boolean = false) extends ApiRole
+  lazy val canDeleteJsonSchemaValidation = CanDeleteJsonSchemaValidation()
+
+  case class CanGetJsonSchemaValidation(requiresBankId: Boolean = false) extends ApiRole
+  lazy val canGetJsonSchemaValidation = CanGetJsonSchemaValidation()
+
+  case class CanCreateAuthenticationTypeValidation(requiresBankId: Boolean = false) extends ApiRole
+  lazy val canCreateAuthenticationTypeValidation = CanCreateAuthenticationTypeValidation()
+
+  case class CanUpdateAuthenticationTypeValidation(requiresBankId: Boolean = false) extends ApiRole
+  lazy val canUpdateAuthenticationTypeValidation = CanUpdateAuthenticationTypeValidation()
+
+  case class CanDeleteAuthenticationValidation(requiresBankId: Boolean = false) extends ApiRole
+  lazy val canDeleteAuthenticationValidation = CanDeleteAuthenticationValidation()
+
+  case class CanGetAuthenticationTypeValidation(requiresBankId: Boolean = false) extends ApiRole
+  lazy val canGetAuthenticationTypeValidation = CanGetAuthenticationTypeValidation()
 
   private val dynamicApiRoles = new ConcurrentHashMap[String, ApiRole]
 

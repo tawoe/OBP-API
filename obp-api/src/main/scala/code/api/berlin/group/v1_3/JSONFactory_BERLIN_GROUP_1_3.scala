@@ -4,18 +4,17 @@ import java.text.SimpleDateFormat
 import java.util.Date
 
 import code.api.util.APIUtil._
-import code.api.util.{APIUtil, CustomJsonFormats, NewStyle}
+import code.api.util.{APIUtil, ConsentJWT, CustomJsonFormats, JwtUtil}
 import code.bankconnectors.Connector
 import code.consent.Consent
 import code.database.authorisation.Authorisation
 import code.model.ModeratedTransaction
-import com.openbankproject.commons.model._
 import com.openbankproject.commons.model.enums.AccountRoutingScheme
-import com.openbankproject.commons.model.{BankAccount, TransactionRequest, User}
-import net.liftweb.common.Full
-import net.liftweb.json.JValue
+import com.openbankproject.commons.model.{BankAccount, TransactionRequest, User, _}
+import net.liftweb.common.{Box, Full}
+import net.liftweb.json
+import net.liftweb.json.{JValue, parse}
 
-import scala.collection.immutable
 import scala.collection.immutable.List
 
 case class JvalueCaseClass(jvalueToCaseclass: JValue)
@@ -282,9 +281,9 @@ object JSONFactory_BERLIN_GROUP_1_3 extends CustomJsonFormats {
           CoreAccountBalancesJson(
             balanceAmount = AmountOfMoneyV13(x.currency,x.balance.toString()),
             balanceType = APIUtil.stringOrNull(x.accountType),
-            lastChangeDateTime=APIUtil.DateWithDayFormat.format(x.lastUpdate),
-            referenceDate =APIUtil.DateWithMsRollback.format(x.lastUpdate),
-            lastCommittedTransaction = "String"
+            lastChangeDateTime= APIUtil.dateOrNull(x.lastUpdate),
+            referenceDate = APIUtil.dateOrNull(x.lastUpdate),
+            lastCommittedTransaction = ""
           )
         CoreAccountJsonV13(
           resourceId = x.accountId.value,
@@ -311,8 +310,8 @@ object JSONFactory_BERLIN_GROUP_1_3 extends CustomJsonFormats {
           CoreAccountBalancesJson(
             balanceAmount = AmountOfMoneyV13(x.currency,x.balance.toString()),
             balanceType = APIUtil.stringOrNull(x.accountType),
-            lastChangeDateTime=APIUtil.DateWithDayFormat.format(x.lastUpdate),
-            referenceDate =APIUtil.DateWithMsRollback.format(x.lastUpdate),
+            lastChangeDateTime= APIUtil.dateOrNull(x.lastUpdate),
+            referenceDate = APIUtil.dateOrNull(x.lastUpdate),
             lastCommittedTransaction = "String"
           )
         CoreAccountJsonV13(
@@ -379,8 +378,8 @@ object JSONFactory_BERLIN_GROUP_1_3 extends CustomJsonFormats {
           amount = bankAccount.balance.toString()
         ),
         balanceType = APIUtil.stringOrNull(bankAccount.accountType),
-        lastChangeDateTime = APIUtil.DateWithMsRollback.format(bankAccount.lastUpdate),
-        referenceDate= APIUtil.DateWithDayFormat.format(bankAccount.lastUpdate),
+        lastChangeDateTime = APIUtil.dateOrNull(bankAccount.lastUpdate),
+        referenceDate = APIUtil.dateOrNull(bankAccount.lastUpdate),
         lastCommittedTransaction = "String"
       ) :: Nil
     ) 
@@ -517,17 +516,21 @@ object JSONFactory_BERLIN_GROUP_1_3 extends CustomJsonFormats {
     )
   }
   
-  def createPostConsentResponseJson(createdConsent: Consent) : PostConsentResponseJson = {
+  def createPostConsentResponseJson(consent: Consent) : PostConsentResponseJson = {
     PostConsentResponseJson(
-      consentId = createdConsent.consentId,
-      consentStatus = createdConsent.status.toLowerCase(),
-      _links= ConsentLinksV13(s"v1.3/consents/${createdConsent.consentId}/authorisations")
+      consentId = consent.consentId,
+      consentStatus = consent.status.toLowerCase(),
+      _links= ConsentLinksV13(s"v1.3/consents/${consent.consentId}/authorisations")
     )
   }
 
   def createGetConsentResponseJson(createdConsent: Consent) : GetConsentResponseJson = {
+    val jsonWebTokenAsJValue: Box[ConsentJWT] = JwtUtil.getSignedPayloadAsJson(createdConsent.jsonWebToken)
+      .map(parse(_).extract[ConsentJWT])
+    val access: ConsentAccessJson = jsonWebTokenAsJValue
+      .flatMap(_.access).getOrElse(ConsentAccessJson())
     GetConsentResponseJson(
-      access = ConsentAccessJson(),
+      access = access,
       recurringIndicator = createdConsent.recurringIndicator,
       validUntil = new SimpleDateFormat(DateWithDay).format(createdConsent.validUntil), 
       frequencyPerDay = createdConsent.frequencyPerDay,
@@ -537,11 +540,11 @@ object JSONFactory_BERLIN_GROUP_1_3 extends CustomJsonFormats {
     )
   }
 
-  def createStartConsentAuthorisationJson(consent: Consent, authorization: Authorisation) : StartConsentAuthorisationJson = {
+  def createStartConsentAuthorisationJson(consent: Consent, challenge: ChallengeTrait) : StartConsentAuthorisationJson = {
     StartConsentAuthorisationJson(
-      scaStatus = consent.status.toLowerCase(),
-      pushMessage = "started", //TODO Not implment how to fill this.
-      _links =  ScaStatusJsonV13(s"/v1.3/consents/${consent.consentId}/authorisations/${authorization.authorisationId}")//TODO, Not sure, what is this for??
+      scaStatus = challenge.scaStatus.map(_.toString).getOrElse("None"),
+      pushMessage = "started", //TODO Not implement how to fill this.
+      _links =  ScaStatusJsonV13(s"/v1.3/consents/${consent.consentId}/authorisations/${challenge.challengeId}")//TODO, Not sure, what is this for??
     )
   }
 
