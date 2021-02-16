@@ -1,7 +1,5 @@
 package code.api.v4_0_0
 
-import java.util.Date
-
 import code.DynamicData.DynamicData
 import code.DynamicEndpoint.DynamicEndpointSwagger
 import code.accountattribute.AccountAttributeX
@@ -24,15 +22,14 @@ import code.api.v2_0_0.OBPAPI2_0_0.Implementations2_0_0
 import code.api.v2_0_0.{EntitlementJSONs, JSONFactory200}
 import code.api.v2_1_0._
 import code.api.v3_0_0.JSONFactory300
-import code.api.v4_0_0.JSONFactory400.createCallsLimitJson
-import code.api.v3_1_0.{ConsentChallengeJsonV310, ConsentJsonV310, CreateAccountRequestJsonV310, CustomerWithAttributesJsonV310, JSONFactory310}
-import com.openbankproject.commons.model.ListResult
+import code.api.v3_1_0._
 import code.api.v4_0_0.DynamicEndpointHelper.DynamicReq
-import code.api.v4_0_0.JSONFactory400.{createBalancesJson, createBankAccountJSON, createNewCoreBankAccountJson}
+import code.api.v4_0_0.JSONFactory400.{createBalancesJson, createBankAccountJSON, createCallsLimitJson, createNewCoreBankAccountJson}
 import code.apicollection.MappedApiCollectionsProvider
 import code.apicollectionendpoint.MappedApiCollectionEndpointsProvider
 import code.authtypevalidation.JsonAuthTypeValidation
-import code.bankconnectors.Connector
+import code.bankconnectors.{Connector, InternalConnector}
+import code.connectormethod.{JsonConnectorMethod, JsonConnectorMethodMethodBody}
 import code.consent.{ConsentStatus, Consents}
 import code.dynamicEntity.{DynamicEntityCommons, ReferenceType}
 import code.entitlement.Entitlement
@@ -48,31 +45,31 @@ import code.transactionrequests.TransactionRequests.TransactionRequestTypes
 import code.transactionrequests.TransactionRequests.TransactionRequestTypes.{apply => _, _}
 import code.userlocks.UserLocksProvider
 import code.users.Users
-import code.util.{Helper, JsonSchemaUtil}
 import code.util.Helper.booleanToFuture
+import code.util.{Helper, JsonSchemaUtil}
 import code.validation.JsonValidation
-import com.openbankproject.commons.util.{ApiVersion, JsonUtils, ScannedApiVersion}
 import code.views.Views
 import com.github.dwickern.macros.NameOf.nameOf
 import com.openbankproject.commons.ExecutionContext.Implicits.global
-import com.openbankproject.commons.model._
+import com.openbankproject.commons.model.{ListResult, _}
 import com.openbankproject.commons.model.enums.DynamicEntityOperation._
 import com.openbankproject.commons.model.enums.{TransactionRequestStatus, _}
+import com.openbankproject.commons.util.{ApiVersion, JsonUtils, ScannedApiVersion}
 import deletion.{DeleteAccountCascade, DeleteProductCascade, DeleteTransactionCascade}
 import net.liftweb.common.{Box, Failure, Full}
-import net.liftweb.http.{JsonResponse, Req}
 import net.liftweb.http.rest.RestHelper
+import net.liftweb.http.{JsonResponse, Req}
 import net.liftweb.json.JsonAST.JValue
+import net.liftweb.json.JsonDSL._
 import net.liftweb.json.Serialization.write
 import net.liftweb.json.{compactRender, _}
 import net.liftweb.mapper.By
 import net.liftweb.util.Helpers.now
 import net.liftweb.util.{Helpers, StringHelpers}
-import net.liftweb.json.JsonDSL._
-import net.liftweb.json._
 import org.apache.commons.collections4.CollectionUtils
 import org.apache.commons.lang3.StringUtils
 
+import java.util.Date
 import scala.collection.immutable.{List, Nil}
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.Future
@@ -2047,47 +2044,46 @@ trait APIMethods400 {
     }
 
     lazy val genericEndpoint: OBPEndpoint = {
-      case EntityName(bankId, entityName, id, dynamicEntityInfo) JsonGet req => { cc =>
+      case EntityName(bankId, entityName, id) JsonGet req => { cc =>
         val listName = StringHelpers.snakify(entityName).replaceFirst("[-_]*$", "_list")
         val singleName = StringHelpers.snakify(entityName).replaceFirst("[-_]*$", "")
         val isGetAll = StringUtils.isBlank(id)
-        val operationId = if(isGetAll) DynamicEntityHelper.buildGetAllOperationId(entityName)
-                          else DynamicEntityHelper.buildGetOneOperationId(entityName)
 
-        val authTypeError: Box[JsonResponse] = validateAuthType(operationId, cc)
-        if(authTypeError.isDefined) authTypeError
+        val operation: DynamicEntityOperation = if(StringUtils.isBlank(id)) GET_ALL else GET_ONE
+        val resourceDoc = DynamicEntityHelper.operationToResourceDoc.get(operation -> entityName)
+        val operationId = resourceDoc.map(_.operationId).orNull
+        val callContext = cc.copy(operationId = Some(operationId), resourceDocument = resourceDoc)
+        // process before authentication interceptor, get intercept result
+        val beforeInterceptResult: Box[JsonResponse] = beforeAuthenticateInterceptResult(Option(callContext), operationId)
+        if(beforeInterceptResult.isDefined) beforeInterceptResult
         else for {
-          (Full(u), callContext) <- authenticatedAccess(cc)
-          _ <- Helper.booleanToFuture(s"$InvalidBankIdDynamicEntity Current BANK_ID($bankId)") {
-            if(dynamicEntityInfo.bankId.isDefined) //if it is the bank level entity, we need to check the bankId
-              bankId.equals(dynamicEntityInfo.bankId.get)
-            else //If it is the system entity, we just return true.
-              true
-          }
+          (Full(u), callContext) <- authenticatedAccess(callContext) // Inject operationId into Call Context. It's used by Rate Limiting.
+
           (_, callContext ) <- 
-            if(dynamicEntityInfo.bankId.isDefined) { //if it is the bank level entity, we need to check the bankId
-              NewStyle.function.getBank(BankId(bankId), callContext) 
+            if(bankId.isDefined) { //if it is the bank level entity, we need to check the bankId
+              NewStyle.function.getBank(bankId.map(BankId(_)).orNull, callContext)
             } else { 
-              Future{("", callContext)}
+              Future.successful{("", callContext)}
             }
           
-          _ <- NewStyle.function.hasEntitlement(dynamicEntityInfo.bankId.getOrElse(""), u.userId, DynamicEntityInfo.canGetRole(entityName, dynamicEntityInfo.bankId), callContext)
-          (box, _) <- if(isGetAll){
-              NewStyle.function.invokeDynamicConnector(GET_ALL, entityName, None, None, dynamicEntityInfo.bankId, Some(cc))
-            } else{
-              NewStyle.function.invokeDynamicConnector(GET_ONE, entityName, None, Some(id), dynamicEntityInfo.bankId, Some(cc))
-            }
-          
-          _<- if(isGetAll){
-            Future{""}
-          } else{
-            Helper.booleanToFuture(EntityNotFoundByEntityId, 404) {box.isDefined}
+          _ <- NewStyle.function.hasEntitlement(bankId.getOrElse(""), u.userId, DynamicEntityInfo.canGetRole(entityName, bankId), callContext)
+
+          // process after authentication interceptor, get intercept result
+          jsonResponse: Box[ErrorMessage] = afterAuthenticateInterceptResult(callContext, operationId).collect({
+            case JsonResponseExtractor(message, code) => ErrorMessage(code, message)
+          })
+          _ <- Helper.booleanToFuture(failMsg = jsonResponse.map(_.message).orNull, failCode = jsonResponse.map(_.code).openOr(400)) {
+            jsonResponse.isEmpty
           }
+
+          (box, _) <- NewStyle.function.invokeDynamicConnector(operation, entityName, None, Option(id).filter(StringUtils.isNotBlank), bankId, Some(cc))
+          
+          _ <- Helper.booleanToFuture(EntityNotFoundByEntityId, 404) {box.isDefined}
         } yield {
           val jValue = if(isGetAll) {
             val resultList: JArray = unboxResult(box.asInstanceOf[Box[JArray]], entityName)
-            if (dynamicEntityInfo.bankId.isDefined){
-              val bankIdJobject: JObject = ("bank_id" -> dynamicEntityInfo.bankId.getOrElse(""))
+            if (bankId.isDefined){
+              val bankIdJobject: JObject = ("bank_id" -> bankId.getOrElse(""))
               val result: JObject = (listName -> filterDynamicObjects(resultList, req))
               bankIdJobject merge result
             } else{
@@ -2096,8 +2092,8 @@ trait APIMethods400 {
             }
           }else{
               val singleObject: JValue = unboxResult(box.asInstanceOf[Box[JValue]], entityName)
-              if (dynamicEntityInfo.bankId.isDefined) {
-                val bankIdJobject: JObject = ("bank_id" -> dynamicEntityInfo.bankId.getOrElse(""))
+              if (bankId.isDefined) {
+                val bankIdJobject: JObject = ("bank_id" -> bankId.getOrElse(""))
                 val result: JObject = (singleName -> singleObject)
                 bankIdJobject merge result
               }else{
@@ -2109,40 +2105,40 @@ trait APIMethods400 {
         }
       }
         
-      case EntityName(bankId, entityName, _, dynamicEntityInfo) JsonPost json -> _ => {cc =>
+      case EntityName(bankId, entityName, _) JsonPost json -> _ => {cc =>
         val singleName = StringHelpers.snakify(entityName).replaceFirst("[-_]*$", "")
-        val operationId = DynamicEntityHelper.buildCreateOperationId(entityName)
+        val operation: DynamicEntityOperation = CREATE
+        val resourceDoc = DynamicEntityHelper.operationToResourceDoc.get(operation -> entityName)
+        val operationId = resourceDoc.map(_.operationId).orNull
+        val callContext = cc.copy(operationId = Some(operationId), resourceDocument = resourceDoc)
 
-        val authTypeError: Box[JsonResponse] = validateAuthType(operationId, cc)
-        if(authTypeError.isDefined) authTypeError
+        // process before authentication interceptor, get intercept result
+        val beforeInterceptResult: Box[JsonResponse] = beforeAuthenticateInterceptResult(Option(callContext), operationId)
+        if(beforeInterceptResult.isDefined) beforeInterceptResult
         else for {
-          (Full(u), callContext) <- authenticatedAccess(cc)
-          _ <- Helper.booleanToFuture(s"$InvalidBankIdDynamicEntity Current BANK_ID($bankId)") {
-            if(dynamicEntityInfo.bankId.isDefined) //if it is the bank level entity, we need to check the bankId
-              bankId.equals(dynamicEntityInfo.bankId.get)
-            else //If it is the system entity, we just return true.
-              true
-          }
+          (Full(u), callContext) <- authenticatedAccess(callContext) // Inject operationId into Call Context. It's used by Rate Limiting.
           (_, callContext ) <-
-            if(dynamicEntityInfo.bankId.isDefined) { //if it is the bank level entity, we need to check the bankId
-              NewStyle.function.getBank(BankId(bankId), callContext)
+            if(bankId.isDefined) { //if it is the bank level entity, we need to check the bankId
+              NewStyle.function.getBank(bankId.map(BankId(_)).orNull, callContext)
             } else {
-              Future{("", callContext)}
+              Future.successful{("", callContext)}
             }
-          _ <- NewStyle.function.hasEntitlement(dynamicEntityInfo.bankId.getOrElse(""), u.userId, DynamicEntityInfo.canCreateRole(entityName, dynamicEntityInfo.bankId), callContext)
+          _ <- NewStyle.function.hasEntitlement(bankId.getOrElse(""), u.userId, DynamicEntityInfo.canCreateRole(entityName, bankId), callContext)
 
-          // validate request json payload
-          errorMsg = JsonSchemaUtil.validateRequest(cc.callContext)(operationId)
-          _ <- Helper.booleanToFuture(failMsg = s"${ErrorMessages.InvalidRequestPayload} ${errorMsg.orNull}") {
-            errorMsg.isEmpty
+          // process after authentication interceptor, get intercept result
+          jsonResponse: Box[ErrorMessage] = afterAuthenticateInterceptResult(callContext, operationId).collect({
+            case JsonResponseExtractor(message, code) => ErrorMessage(code, message)
+          })
+          _ <- Helper.booleanToFuture(failMsg = jsonResponse.map(_.message).orNull, failCode = jsonResponse.map(_.code).openOr(400)) {
+            jsonResponse.isEmpty
           }
 
-          (box, _) <- NewStyle.function.invokeDynamicConnector(CREATE, entityName, Some(json.asInstanceOf[JObject]), None, dynamicEntityInfo.bankId, Some(cc))
+          (box, _) <- NewStyle.function.invokeDynamicConnector(operation, entityName, Some(json.asInstanceOf[JObject]), None, bankId, Some(cc))
           singleObject: JValue = unboxResult(box.asInstanceOf[Box[JValue]], entityName)
         } yield {
           val result: JObject = (singleName -> singleObject)
-          val entity = if (dynamicEntityInfo.bankId.isDefined) {
-            val bankIdJobject: JObject = ("bank_id" -> dynamicEntityInfo.bankId.getOrElse(""))
+          val entity = if (bankId.isDefined) {
+            val bankIdJobject: JObject = ("bank_id" -> bankId.getOrElse(""))
             bankIdJobject merge result
           } else {
             result
@@ -2150,44 +2146,44 @@ trait APIMethods400 {
           (entity, HttpCode.`201`(Some(cc)))
         }
       }
-      case EntityName(bankId, entityName, id, dynamicEntityInfo) JsonPut json -> _ => { cc =>
+      case EntityName(bankId, entityName, id) JsonPut json -> _ => { cc =>
         val singleName = StringHelpers.snakify(entityName).replaceFirst("[-_]*$", "")
-        val operationId = DynamicEntityHelper.buildUpdateOperationId(entityName)
+        val operation: DynamicEntityOperation = UPDATE
+        val resourceDoc = DynamicEntityHelper.operationToResourceDoc.get(operation -> entityName)
+        val operationId = resourceDoc.map(_.operationId).orNull
+        val callContext = cc.copy(operationId = Some(operationId), resourceDocument = resourceDoc)
 
-        val authTypeError: Box[JsonResponse] = validateAuthType(operationId, cc)
-        if(authTypeError.isDefined) authTypeError
+        // process before authentication interceptor, get intercept result
+        val beforeInterceptResult: Box[JsonResponse] = beforeAuthenticateInterceptResult(Option(callContext), operationId)
+        if(beforeInterceptResult.isDefined) beforeInterceptResult
         else for {
-          (Full(u), callContext) <- authenticatedAccess(cc)
-          _ <- Helper.booleanToFuture(s"$InvalidBankIdDynamicEntity Current BANK_ID($bankId)") {
-            if(dynamicEntityInfo.bankId.isDefined) //if it is the bank level entity, we need to check the bankId
-              bankId.equals(dynamicEntityInfo.bankId.get)
-            else //If it is the system entity, we just return true.
-              true
-          }
+          (Full(u), callContext) <- authenticatedAccess(callContext) // Inject operationId into Call Context. It's used by Rate Limiting.
           (_, callContext ) <-
-            if(dynamicEntityInfo.bankId.isDefined) { //if it is the bank level entity, we need to check the bankId
-              NewStyle.function.getBank(BankId(bankId), callContext)
+            if(bankId.isDefined) { //if it is the bank level entity, we need to check the bankId
+              NewStyle.function.getBank(bankId.map(BankId(_)).orNull, callContext)
             } else {
-              Future{("", callContext)}
+              Future.successful{("", callContext)}
             }
-          _ <- NewStyle.function.hasEntitlement(dynamicEntityInfo.bankId.getOrElse(""), u.userId, DynamicEntityInfo.canUpdateRole(entityName, dynamicEntityInfo.bankId), callContext)
+          _ <- NewStyle.function.hasEntitlement(bankId.getOrElse(""), u.userId, DynamicEntityInfo.canUpdateRole(entityName, bankId), callContext)
 
-          // validate request json payload
-          errorMsg = JsonSchemaUtil.validateRequest(cc.callContext)(operationId)
-          _ <- Helper.booleanToFuture(failMsg = s"${ErrorMessages.InvalidRequestPayload} ${errorMsg.orNull}") {
-            errorMsg.isEmpty
+          // process after authentication interceptor, get intercept result
+          jsonResponse: Box[ErrorMessage] = afterAuthenticateInterceptResult(callContext, operationId).collect({
+            case JsonResponseExtractor(message, code) => ErrorMessage(code, message)
+          })
+          _ <- Helper.booleanToFuture(failMsg = jsonResponse.map(_.message).orNull, failCode = jsonResponse.map(_.code).openOr(400)) {
+            jsonResponse.isEmpty
           }
 
-          (box, _) <- NewStyle.function.invokeDynamicConnector(GET_ONE, entityName, None, Some(id), dynamicEntityInfo.bankId, Some(cc))
+          (box, _) <- NewStyle.function.invokeDynamicConnector(GET_ONE, entityName, None, Some(id), bankId, Some(cc))
           _ <- Helper.booleanToFuture(EntityNotFoundByEntityId, 404) {
             box.isDefined
           }
-          (box: Box[JValue], _) <- NewStyle.function.invokeDynamicConnector(UPDATE, entityName, Some(json.asInstanceOf[JObject]), Some(id), dynamicEntityInfo.bankId, Some(cc))
+          (box: Box[JValue], _) <- NewStyle.function.invokeDynamicConnector(operation, entityName, Some(json.asInstanceOf[JObject]), Some(id), bankId, Some(cc))
           singleObject: JValue = unboxResult(box.asInstanceOf[Box[JValue]], entityName)
         } yield {
           val result: JObject = (singleName -> singleObject)
-          val entity = if (dynamicEntityInfo.bankId.isDefined) {
-            val bankIdJobject: JObject = ("bank_id" -> dynamicEntityInfo.bankId.getOrElse(""))
+          val entity = if (bankId.isDefined) {
+            val bankIdJobject: JObject = ("bank_id" -> bankId.getOrElse(""))
             bankIdJobject merge result
           } else {
             result
@@ -2195,31 +2191,38 @@ trait APIMethods400 {
           (entity, HttpCode.`200`(Some(cc)))
         }
       }
-      case EntityName(bankId, entityName, id, dynamicEntityInfo) JsonDelete req => { cc =>
-        val operationId = DynamicEntityHelper.buildDeleteOperationId(entityName)
+      case EntityName(bankId, entityName, id) JsonDelete _ => { cc =>
+        val operation: DynamicEntityOperation = DELETE
+        val resourceDoc = DynamicEntityHelper.operationToResourceDoc.get(operation -> entityName)
+        val operationId = resourceDoc.map(_.operationId).orNull
+        val callContext = cc.copy(operationId = Some(operationId), resourceDocument = resourceDoc)
 
-        val authTypeError: Box[JsonResponse] = validateAuthType(operationId, cc)
-        if(authTypeError.isDefined) authTypeError
+        // process before authentication interceptor, get intercept result
+        val beforeInterceptResult: Box[JsonResponse] = beforeAuthenticateInterceptResult(Option(callContext), operationId)
+        if(beforeInterceptResult.isDefined) beforeInterceptResult
         else for {
-          (Full(u), callContext) <- authenticatedAccess(cc)
-          _ <- Helper.booleanToFuture(s"$InvalidBankIdDynamicEntity Current BANK_ID($bankId)") {
-            if(dynamicEntityInfo.bankId.isDefined) //if it is the bank level entity, we need to check the bankId
-              bankId.equals(dynamicEntityInfo.bankId.get)
-            else //If it is the system entity, we just return true.
-              true
-          }
+          (Full(u), callContext) <- authenticatedAccess(callContext) // Inject operationId into Call Context. It's used by Rate Limiting.
           (_, callContext ) <-
-            if(dynamicEntityInfo.bankId.isDefined) { //if it is the bank level entity, we need to check the bankId
-              NewStyle.function.getBank(BankId(bankId), callContext)
+            if(bankId.isDefined) { //if it is the bank level entity, we need to check the bankId
+              NewStyle.function.getBank(bankId.map(BankId(_)).orNull, callContext)
             } else {
-              Future{("", callContext)}
+              Future.successful{("", callContext)}
             }
-          _ <- NewStyle.function.hasEntitlement(dynamicEntityInfo.bankId.getOrElse(""), u.userId, DynamicEntityInfo.canDeleteRole(entityName, dynamicEntityInfo.bankId), callContext)
-          (box, _) <- NewStyle.function.invokeDynamicConnector(GET_ONE, entityName, None, Some(id), dynamicEntityInfo.bankId, Some(cc))
+          _ <- NewStyle.function.hasEntitlement(bankId.getOrElse(""), u.userId, DynamicEntityInfo.canDeleteRole(entityName, bankId), callContext)
+
+          // process after authentication interceptor, get intercept result
+          jsonResponse: Box[ErrorMessage] = afterAuthenticateInterceptResult(callContext, operationId).collect({
+            case JsonResponseExtractor(message, code) => ErrorMessage(code, message)
+          })
+          _ <- Helper.booleanToFuture(failMsg = jsonResponse.map(_.message).orNull, failCode = jsonResponse.map(_.code).openOr(400)) {
+            jsonResponse.isEmpty
+          }
+
+          (box, _) <- NewStyle.function.invokeDynamicConnector(GET_ONE, entityName, None, Some(id), bankId, Some(cc))
           _ <- Helper.booleanToFuture(EntityNotFoundByEntityId, 404) {
             box.isDefined
           }
-          (box, _) <- NewStyle.function.invokeDynamicConnector(DELETE, entityName, None, Some(id),dynamicEntityInfo.bankId, Some(cc))
+          (box, _) <- NewStyle.function.invokeDynamicConnector(operation, entityName, None, Some(id), bankId, Some(cc))
           deleteResult: JBool = unboxResult(box.asInstanceOf[Box[JBool]], entityName)
         } yield {
           (deleteResult, HttpCode.`204`(Some(cc)))
@@ -2864,6 +2867,86 @@ trait APIMethods400 {
             val viewsAvailable = availableViews.map(JSONFactory.createViewJSON).sortBy(_.short_name)
             val tags = Tags.tags.vend.getTagsOnAccount(account.bankId, account.accountId)(view.viewId)
             (createBankAccountJSON(moderatedAccount, viewsAvailable, accountAttributes, tags), HttpCode.`200`(callContext))
+          }
+      }
+    }
+
+    staticResourceDocs += ResourceDoc(
+      getAccountsByAccountRoutingRegex,
+      implementedInApiVersion,
+      nameOf(getAccountsByAccountRoutingRegex),
+      "POST",
+      "/management/accounts/account-routing-regex-query",
+      "Get Accounts by Account Routing Regex",
+      """This endpoint returns an array of accounts matching the provided routing scheme and the routing address regex.
+        |
+        |The `bank_id` field is optional.
+        |
+        |Example of account routing scheme: `IBAN`, `OBP`, `AccountNumber`, ...
+        |Example of account routing address regex: `DE175.*`, `55897106215-[A-Z]{3}`, ...
+        |
+        |This endpoint can be used to retrieve multiples accounts matching a same account routing address pattern.
+        |For example, if you want to link multiple accounts having different currencies, you can create an account
+        |with `123456789-EUR` as Account Number and an other account with `123456789-USD` as Account Number.
+        |So we can identify the Account Number as `123456789`, so to get all the accounts with the same account number
+        |and the different currencies, we can use this body in the request :
+        |
+        |```
+        |{
+        |   "bank_id": "BANK_ID",
+        |   "account_routing": {
+        |       "scheme": "AccountNumber",
+        |       "address": "123456789-[A-Z]{3}"
+        |   }
+        |}
+        |```
+        |
+        |This request will returns the accounts matching the routing address regex (`123456789-EUR` and `123456789-USD`).
+        |
+        |""".stripMargin,
+      bankAccountRoutingJson,
+      moderatedAccountsJSON400,
+      List(
+        $UserNotLoggedIn,
+        $BankNotFound,
+        $BankAccountNotFound,
+        $UserNoPermissionAccessView,
+        UnknownError),
+      List(apiTagAccount, apiTagNewStyle),
+    )
+    lazy val getAccountsByAccountRoutingRegex : OBPEndpoint = {
+      case "management" :: "accounts" :: "account-routing-regex-query" :: Nil JsonPost json -> _ => {
+        cc =>
+          val failMsg = s"$InvalidJsonFormat The Json body should be the $accountRoutingJsonV121"
+          for {
+            postJson <- NewStyle.function.tryons(failMsg, 400, cc.callContext) {
+              json.extract[BankAccountRoutingJson]
+            }
+
+            (accountRoutings, callContext) <- NewStyle.function.getAccountRoutingsByScheme(postJson.bank_id.map(BankId(_)),
+              postJson.account_routing.scheme, cc.callContext)
+
+            accountRoutingAddressRegex = postJson.account_routing.address.r
+            filteredAccountRoutings = accountRoutings.filter(accountRouting =>
+              accountRoutingAddressRegex.findFirstIn(accountRouting.accountRouting.address).isDefined)
+
+            user @Full(u) = cc.user
+
+            accountsJson <- Future.sequence(filteredAccountRoutings.map(accountRouting => for {
+              (account, callContext) <- NewStyle.function.getBankAccount(accountRouting.bankId, accountRouting.accountId, callContext)
+              view <- NewStyle.function.checkOwnerViewAccessAndReturnOwnerView(u, BankIdAccountId(account.bankId, account.accountId), callContext)
+              moderatedAccount <- NewStyle.function.moderatedBankAccountCore(account, view, user, callContext)
+              (accountAttributes, callContext) <- NewStyle.function.getAccountAttributesByAccount(
+                account.bankId,
+                account.accountId,
+                callContext: Option[CallContext])
+              availableViews = Views.views.vend.privateViewsUserCanAccessForAccount(cc.user.openOrThrowException("Exception user"), BankIdAccountId(account.bankId, account.accountId))
+              viewsAvailable = availableViews.map(JSONFactory.createViewJSON).sortBy(_.short_name)
+              tags = Tags.tags.vend.getTagsOnAccount(account.bankId, account.accountId)(view.viewId)
+            } yield createBankAccountJSON(moderatedAccount, viewsAvailable, accountAttributes, tags)
+            ))
+          } yield {
+            (ModeratedAccountsJSON400(accountsJson), HttpCode.`200`(callContext))
           }
       }
     }
@@ -4429,18 +4512,25 @@ trait APIMethods400 {
 
     lazy val dynamicEndpoint: OBPEndpoint = {
       case DynamicReq(url, json, method, params, pathParams, role, operationId, mockResponse) => { cc =>
-        val authTypeError: Box[JsonResponse] = validateAuthType(operationId, cc)
-        if(authTypeError.isDefined) authTypeError
+        // process before authentication interceptor, get intercept result
+        val resourceDoc = DynamicEndpointHelper.doc.find(_.operationId == operationId)
+        val callContext = cc.copy(operationId = Some(operationId), resourceDocument = resourceDoc)
+        val beforeInterceptResult: Box[JsonResponse] = beforeAuthenticateInterceptResult(Option(callContext), operationId)
+        if(beforeInterceptResult.isDefined) beforeInterceptResult
         else for {
-            (Full(u), callContext) <- authenticatedAccess(cc.copy(operationId = Some(operationId))) // Inject operationId into Call Context. It's used by Rate Limiting.
+            (Full(u), callContext) <- authenticatedAccess(callContext) // Inject operationId into Call Context. It's used by Rate Limiting.
             _ <- NewStyle.function.hasEntitlement("", u.userId, role, callContext)
 
             // validate request json payload
             httpRequestMethod = cc.verb
             path = StringUtils.substringAfter(cc.url, DynamicEndpointHelper.urlPrefix)
-            errorMsg:Option[String] = JsonSchemaUtil.validateRequest(cc.callContext)(operationId)
-            _ <- Helper.booleanToFuture(failMsg = s"${ErrorMessages.InvalidRequestPayload} ${errorMsg.orNull}") {
-              errorMsg.isEmpty
+
+            // process after authentication interceptor, get intercept result
+            jsonResponse: Box[ErrorMessage] = afterAuthenticateInterceptResult(callContext, operationId).collect({
+              case JsonResponseExtractor(message, code) => ErrorMessage(code, message)
+            })
+            _ <- Helper.booleanToFuture(failMsg = jsonResponse.map(_.message).orNull, failCode = jsonResponse.map(_.code).openOr(400)) {
+              jsonResponse.isEmpty
             }
 
             (box, _) <- MockResponseHolder.init(mockResponse) { // if target url domain is `obp_mock`, set mock response to current thread
@@ -6842,6 +6932,159 @@ trait APIMethods400 {
       ),
       List(apiTagAuthenticationTypeValidation, apiTagNewStyle),
       None)
+
+    staticResourceDocs += ResourceDoc(
+      createConnectorMethod,
+      implementedInApiVersion,
+      nameOf(createConnectorMethod),
+      "POST",
+      "/management/connector-methods",
+      "Create Connector Method",
+      s"""Create an internal connector.
+         |
+         |The method_body is URL-encoded format String
+         |""",
+      jsonConnectorMethod.copy(internalConnectorId=None),
+      jsonConnectorMethod,
+      List(
+        $UserNotLoggedIn,
+        UserHasMissingRoles,
+        InvalidJsonFormat,
+        UnknownError
+      ),
+      List(apiTagConnectorMethod, apiTagNewStyle),
+      Some(List(canCreateConnectorMethod)))
+
+    lazy val createConnectorMethod: OBPEndpoint = {
+      case "management" :: "connector-methods" :: Nil JsonPost json -> _ => {
+        cc =>
+          for {
+            jsonConnectorMethod <- NewStyle.function.tryons(s"$InvalidJsonFormat The Json body should be the $JsonConnectorMethod", 400, cc.callContext) {
+              json.extract[JsonConnectorMethod]
+            }
+            
+            (isExists, callContext) <- NewStyle.function.isJsonConnectorMethodNameExists(jsonConnectorMethod.methodName, Some(cc))
+            _ <- Helper.booleanToFuture(failMsg = s"$ConnectorMethodAlreadyExists Please use a different method_name(${jsonConnectorMethod.methodName})") {
+              (!isExists)
+            }
+            connectorMethod = InternalConnector.createFunction(jsonConnectorMethod.methodName, jsonConnectorMethod.decodedMethodBody)
+            errorMsg = if(connectorMethod.isEmpty) s"$ConnectorMethodBodyCompileFail ${connectorMethod.asInstanceOf[Failure].msg}" else ""
+            _ <- Helper.booleanToFuture(failMsg = errorMsg) {
+              connectorMethod.isDefined
+            }
+            
+            (connectorMethod, callContext) <- NewStyle.function.createJsonConnectorMethod(jsonConnectorMethod, callContext)
+          } yield {
+            (connectorMethod, HttpCode.`201`(callContext))
+          }
+      }
+    }
+
+    staticResourceDocs += ResourceDoc(
+      updateConnectorMethod,
+      implementedInApiVersion,
+      nameOf(updateConnectorMethod),
+      "PUT",
+      "/management/connector-methods/CONNECTOR_METHOD_ID",
+      "Update Connector Method",
+      s"""Update an internal connector.
+         |
+         |The method_body is URL-encoded format String
+         |""",
+      jsonConnectorMethodMethodBody,
+      jsonConnectorMethod,
+      List(
+        $UserNotLoggedIn,
+        UserHasMissingRoles,
+        InvalidJsonFormat,
+        UnknownError
+      ),
+      List(apiTagConnectorMethod, apiTagNewStyle),
+      Some(List(canUpdateConnectorMethod)))
+
+    lazy val updateConnectorMethod: OBPEndpoint = {
+      case "management" :: "connector-methods" :: connectorMethodId :: Nil JsonPut json -> _ => {
+        cc =>
+          for {
+            connectorMethodBody <- NewStyle.function.tryons(s"$InvalidJsonFormat The Json body should be the $JsonConnectorMethod", 400, cc.callContext) {
+              json.extract[JsonConnectorMethodMethodBody]
+            }
+
+            (cm, callContext) <- NewStyle.function.getJsonConnectorMethodById(connectorMethodId, cc.callContext)
+
+            connectorMethod = InternalConnector.createFunction(cm.methodName, connectorMethodBody.decodedMethodBody)
+            errorMsg = if(connectorMethod.isEmpty) s"$ConnectorMethodBodyCompileFail ${connectorMethod.asInstanceOf[Failure].msg}" else ""
+            _ <- Helper.booleanToFuture(failMsg = errorMsg) {
+              connectorMethod.isDefined
+            }
+            (connectorMethod, callContext) <- NewStyle.function.updateJsonConnectorMethod(connectorMethodId, connectorMethodBody.methodBody, callContext)
+          } yield {
+            (connectorMethod, HttpCode.`200`(callContext))
+          }
+      }
+    }
+
+    staticResourceDocs += ResourceDoc(
+      getConnectorMethod,
+      implementedInApiVersion,
+      nameOf(getConnectorMethod),
+      "GET",
+      "/management/connector-methods/CONNECTOR_METHOD_ID",
+      "Get Connector Method by Id",
+      s"""Get an internal connector by CONNECTOR_METHOD_ID.
+         |
+         |""",
+      EmptyBody,
+      jsonConnectorMethod,
+      List(
+        $UserNotLoggedIn,
+        UserHasMissingRoles,
+        UnknownError
+      ),
+      List(apiTagConnectorMethod, apiTagNewStyle),
+      Some(List(canGetConnectorMethod)))
+
+    lazy val getConnectorMethod: OBPEndpoint = {
+      case "management" :: "connector-methods" :: connectorMethodId :: Nil JsonGet _ => {
+        cc =>
+          for {
+            (connectorMethod, callContext) <- NewStyle.function.getJsonConnectorMethodById(connectorMethodId, cc.callContext)
+          } yield {
+            (connectorMethod, HttpCode.`200`(callContext))
+          }
+      }
+    }
+
+    staticResourceDocs += ResourceDoc(
+      getAllConnectorMethods,
+      implementedInApiVersion,
+      nameOf(getAllConnectorMethods),
+      "GET",
+      "/management/connector-methods",
+      "Get all Connector Methods",
+      s"""Get all Connector Methods.
+         |
+         |""",
+      EmptyBody,
+      ListResult("connectors_methods", jsonConnectorMethod::Nil),
+      List(
+        $UserNotLoggedIn,
+        UserHasMissingRoles,
+        UnknownError
+      ),
+      List(apiTagConnectorMethod, apiTagNewStyle),
+      Some(List(canGetAllConnectorMethods)))
+
+    lazy val getAllConnectorMethods: OBPEndpoint = {
+      case "management" :: "connector-methods" :: Nil JsonGet _ => {
+        cc =>
+          for {
+            (connectorMethods, callContext) <- NewStyle.function.getJsonConnectorMethods(cc.callContext)
+          } yield {
+            (ListResult("connector_methods", connectorMethods), HttpCode.`200`(callContext))
+          }
+      }
+    }
 
   }
 }
