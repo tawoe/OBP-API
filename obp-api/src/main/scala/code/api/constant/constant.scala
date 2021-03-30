@@ -31,6 +31,10 @@ object Constant extends MdcLoggable {
   final val SYSTEM_READ_TRANSACTIONS_BASIC_VIEW_ID = "ReadTransactionsBasic"
   final val SYSTEM_READ_TRANSACTIONS_DEBITS_VIEW_ID = "ReadTransactionsDebits"
   final val SYSTEM_READ_TRANSACTIONS_DETAIL_VIEW_ID = "ReadTransactionsDetail"
+  // Berlin Group
+  final val SYSTEM_READ_ACCOUNTS_BERLIN_GROUP_VIEW_ID = "ReadAccountsBerlinGroup"
+  final val SYSTEM_READ_BALANCES_BERLIN_GROUP_VIEW_ID = "ReadBalancesBerlinGroup"
+  final val SYSTEM_READ_TRANSACTIONS_BERLIN_GROUP_VIEW_ID = "ReadTransactionsBerlinGroup"
 
   //These are the default incoming and outgoing account ids. we will create both during the boot.scala.
   final val INCOMING_ACCOUNT_ID= "OBP_DEFAULT_INCOMING_ACCOUNT_ID"    
@@ -50,6 +54,7 @@ object RequestHeader {
   final lazy val `Consumer-Key` = "Consumer-Key"
   @deprecated("Use Consent-JWT","11-03-2020")
   final lazy val `Consent-Id` = "Consent-Id"
+  final lazy val `Consent-ID` = "Consent-ID" // Berlin Group
   final lazy val `Consent-JWT` = "Consent-JWT"
   final lazy val `PSD2-CERT` = "PSD2-CERT"
 }

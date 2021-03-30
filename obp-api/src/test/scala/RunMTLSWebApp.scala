@@ -40,6 +40,8 @@ import sun.security.provider.X509Factory
 
 object RunMTLSWebApp extends App {
   val servletContextPath = "/"
+  //set run mode value to "development", So the value is true of Props.devMode
+  System.setProperty("run.mode", "development")
 
   {
     val tempHTTPContext = JProxy.newProxyInstance(this.getClass.getClassLoader, Array(classOf[HTTPContext]),
@@ -94,7 +96,7 @@ object RunMTLSWebApp extends App {
     sslContextFactory.setProtocol("TLSv1.2")
 
     val connector = new ServerConnector(server, new SslConnectionFactory(sslContextFactory, "http/1.1"), new HttpConnectionFactory(https))
-    connector.setPort(443)
+    connector.setPort(8080)
 
     Array(connector)
   }

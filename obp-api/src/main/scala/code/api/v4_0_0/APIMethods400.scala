@@ -3,8 +3,8 @@ package code.api.v4_0_0
 import code.DynamicData.DynamicData
 import code.DynamicEndpoint.DynamicEndpointSwagger
 import code.accountattribute.AccountAttributeX
-import code.api.ChargePolicy
-import code.api.ResourceDocs1_4_0.SwaggerDefinitionsJSON.{logoutLinkV400, _}
+import code.api.{ChargePolicy, JsonResponseException}
+import code.api.ResourceDocs1_4_0.SwaggerDefinitionsJSON.{jsonDynamicResourceDoc, logoutLinkV400, _}
 import code.api.util.APIUtil.{fullBoxOrException, _}
 import code.api.util.ApiRole._
 import code.api.util.ApiTag._
@@ -23,14 +23,16 @@ import code.api.v2_0_0.{EntitlementJSONs, JSONFactory200}
 import code.api.v2_1_0._
 import code.api.v3_0_0.JSONFactory300
 import code.api.v3_1_0._
-import code.api.v4_0_0.DynamicEndpointHelper.DynamicReq
+import code.api.v4_0_0.dynamic.DynamicEndpointHelper.DynamicReq
 import code.api.v4_0_0.JSONFactory400.{createBalancesJson, createBankAccountJSON, createCallsLimitJson, createNewCoreBankAccountJson}
+import code.api.v4_0_0.dynamic.practise.PractiseEndpoint
+import code.api.v4_0_0.dynamic.{CompiledObjects, DynamicEndpointHelper, DynamicEntityHelper, DynamicEntityInfo, EntityName, MockResponseHolder}
 import code.apicollection.MappedApiCollectionsProvider
 import code.apicollectionendpoint.MappedApiCollectionEndpointsProvider
 import code.authtypevalidation.JsonAuthTypeValidation
-import code.bankconnectors.{Connector, InternalConnector}
+import code.bankconnectors.{Connector, DynamicConnector, InternalConnector}
 import code.connectormethod.{JsonConnectorMethod, JsonConnectorMethodMethodBody}
-import code.consent.{ConsentStatus, Consents}
+import code.consent.{ConsentStatus, Consents, MappedConsent}
 import code.dynamicEntity.{DynamicEntityCommons, ReferenceType}
 import code.entitlement.Entitlement
 import code.metadata.counterparties.{Counterparties, MappedCounterparty}
@@ -68,8 +70,14 @@ import net.liftweb.util.Helpers.now
 import net.liftweb.util.{Helpers, StringHelpers}
 import org.apache.commons.collections4.CollectionUtils
 import org.apache.commons.lang3.StringUtils
-
 import java.util.Date
+
+import code.dynamicMessageDoc.JsonDynamicMessageDoc
+import code.dynamicResourceDoc.JsonDynamicResourceDoc
+import java.net.URLEncoder
+
+import code.api.v4_0_0.dynamic.practise.DynamicEndpointCodeGenerator
+
 import scala.collection.immutable.{List, Nil}
 import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.Future
@@ -249,7 +257,7 @@ trait APIMethods400 {
       implementedInApiVersion,
       nameOf(ibanChecker),
       "POST",
-      "/account/check/scheme/IBAN",
+      "/account/check/scheme/iban",
       "Validate and check IBAN number",
       """Validate and check IBAN number for errors
         |
@@ -261,7 +269,7 @@ trait APIMethods400 {
     )
 
     lazy val ibanChecker: OBPEndpoint = {
-      case "account" :: "check" :: "scheme" :: "IBAN" :: Nil JsonPost json -> _ => {
+      case "account" :: "check" :: "scheme" :: "iban" :: Nil JsonPost json -> _ => {
         cc =>
           val failMsg = s"$InvalidJsonFormat The Json body should be the ${prettyRender(Extraction.decompose(ibanCheckerPostJsonV400))}"
           for {
@@ -312,7 +320,7 @@ trait APIMethods400 {
         cc =>
           for {
             (_, callContext) <- NewStyle.function.getTransaction(bankId, accountId, transactionId, cc.callContext)
-            (doubleEntryTransaction, callContext) <- NewStyle.function.getDoubleEntryBookTransaction(bankId, accountId, transactionId, cc.callContext)
+            (doubleEntryTransaction, callContext) <- NewStyle.function.getDoubleEntryBookTransaction(bankId, accountId, transactionId, callContext)
           } yield {
             (JSONFactory400.createDoubleEntryTransactionJson(doubleEntryTransaction), HttpCode.`200`(callContext))
           }
@@ -4303,7 +4311,7 @@ trait APIMethods400 {
         InvalidJsonFormat,
         UnknownError
       ),
-      List(apiTagManageDynamicEndpoint, apiTagApi, apiTagNewStyle),
+      List(apiTagDynamicSwaggerDoc, apiTagApi, apiTagNewStyle),
       Some(List(canCreateDynamicEndpoint)))
 
     lazy val createDynamicEndpoint: OBPEndpoint = {
@@ -4354,7 +4362,7 @@ trait APIMethods400 {
         InvalidJsonFormat,
         UnknownError
       ),
-      List(apiTagManageDynamicEndpoint, apiTagApi, apiTagNewStyle),
+      List(apiTagDynamicSwaggerDoc, apiTagApi, apiTagNewStyle),
       Some(List(canGetDynamicEndpoint)))
 
     lazy val getDynamicEndpoint: OBPEndpoint = {
@@ -4393,7 +4401,7 @@ trait APIMethods400 {
         InvalidJsonFormat,
         UnknownError
       ),
-      List(apiTagManageDynamicEndpoint, apiTagApi, apiTagNewStyle),
+      List(apiTagDynamicSwaggerDoc, apiTagApi, apiTagNewStyle),
       Some(List(canGetDynamicEndpoints)))
 
     lazy val getDynamicEndpoints: OBPEndpoint = {
@@ -4426,7 +4434,7 @@ trait APIMethods400 {
         DynamicEndpointNotFoundByDynamicEndpointId,
         UnknownError
       ),
-      List(apiTagManageDynamicEndpoint, apiTagApi, apiTagNewStyle),
+      List(apiTagDynamicSwaggerDoc, apiTagApi, apiTagNewStyle),
       Some(List(canDeleteDynamicEndpoint)))
 
     lazy val deleteDynamicEndpoint : OBPEndpoint = {
@@ -4458,7 +4466,7 @@ trait APIMethods400 {
         InvalidJsonFormat,
         UnknownError
       ),
-      List(apiTagManageDynamicEndpoint, apiTagApi, apiTagNewStyle)
+      List(apiTagDynamicSwaggerDoc, apiTagApi, apiTagNewStyle)
     )
 
     lazy val getMyDynamicEndpoints: OBPEndpoint = {
@@ -4491,7 +4499,7 @@ trait APIMethods400 {
         DynamicEndpointNotFoundByDynamicEndpointId,
         UnknownError
       ),
-      List(apiTagManageDynamicEndpoint, apiTagApi, apiTagNewStyle),
+      List(apiTagDynamicSwaggerDoc, apiTagApi, apiTagNewStyle),
     )
 
     lazy val deleteMyDynamicEndpoint : OBPEndpoint = {
@@ -6080,6 +6088,45 @@ trait APIMethods400 {
       }
     }
 
+
+    staticResourceDocs += ResourceDoc(
+      getConsents,
+      implementedInApiVersion,
+      nameOf(getConsents),
+      "GET",
+      "/banks/BANK_ID/my/consents",
+      "Get Consents",
+      s"""
+         |
+         |This endpoint gets the Consents that the current User created.
+         |
+         |${authenticationRequiredMessage(true)}
+         |
+      """.stripMargin,
+      emptyObjectJson,
+      consentsJsonV400,
+      List(
+        $UserNotLoggedIn,
+        $BankNotFound,
+        UnknownError
+      ),
+      List(apiTagConsent, apiTagPSD2AIS, apiTagPsd2, apiTagNewStyle))
+
+    lazy val getConsents: OBPEndpoint = {
+      case "banks" :: BankId(bankId) :: "my" :: "consents" :: Nil JsonGet _ => {
+        cc =>
+          for {
+            consents <- Future { Consents.consentProvider.vend.getConsentsByUser(cc.userId)
+              .sortBy(i => (i.creationDateTime, i.apiStandard)).reverse
+            }
+          } yield {
+            val consentsOfBank = Consent.filterByBankId(consents, bankId)
+            (JSONFactory400.createConsentsJsonV400(consentsOfBank), HttpCode.`200`(cc))
+          }
+      }
+    }
+    
+
     staticResourceDocs += ResourceDoc(
       getScannedApiVersions,
       implementedInApiVersion,
@@ -6944,7 +6991,7 @@ trait APIMethods400 {
          |
          |The method_body is URL-encoded format String
          |""",
-      jsonConnectorMethod.copy(internalConnectorId=None),
+      jsonConnectorMethod.copy(connectorMethodId=None),
       jsonConnectorMethod,
       List(
         $UserNotLoggedIn,
@@ -6963,7 +7010,7 @@ trait APIMethods400 {
               json.extract[JsonConnectorMethod]
             }
             
-            (isExists, callContext) <- NewStyle.function.isJsonConnectorMethodNameExists(jsonConnectorMethod.methodName, Some(cc))
+            (isExists, callContext) <- NewStyle.function.connectorMethodNameExists(jsonConnectorMethod.methodName, Some(cc))
             _ <- Helper.booleanToFuture(failMsg = s"$ConnectorMethodAlreadyExists Please use a different method_name(${jsonConnectorMethod.methodName})") {
               (!isExists)
             }
@@ -7082,6 +7129,451 @@ trait APIMethods400 {
             (connectorMethods, callContext) <- NewStyle.function.getJsonConnectorMethods(cc.callContext)
           } yield {
             (ListResult("connector_methods", connectorMethods), HttpCode.`200`(callContext))
+          }
+      }
+    }
+
+    staticResourceDocs += ResourceDoc(
+      createDynamicResourceDoc,
+      implementedInApiVersion,
+      nameOf(createDynamicResourceDoc),
+      "POST",
+      "/management/dynamic-resource-docs",
+      "Create Dynamic Resource Doc",
+      s"""Create a Dynamic Resource Doc.
+         |
+         |The connector_method_body is URL-encoded format String
+         |""",
+      jsonDynamicResourceDoc.copy(dynamicResourceDocId=None),
+      jsonDynamicResourceDoc,
+      List(
+        $UserNotLoggedIn,
+        UserHasMissingRoles,
+        InvalidJsonFormat,
+        UnknownError
+      ),
+      List(apiTagDynamicResourceDoc, apiTagNewStyle),
+      Some(List(canCreateDynamicResourceDoc)))
+
+    lazy val createDynamicResourceDoc: OBPEndpoint = {
+      case "management" :: "dynamic-resource-docs" :: Nil JsonPost json -> _ => {
+        cc =>
+          for {
+            jsonDynamicResourceDoc <- NewStyle.function.tryons(s"$InvalidJsonFormat The Json body should be the $JsonDynamicResourceDoc", 400, cc.callContext) {
+              json.extract[JsonDynamicResourceDoc]
+            }
+            _ <- Helper.booleanToFuture(failMsg = s"""$InvalidJsonFormat The request_verb must be one of ["POST", "PUT", "GET", "DELETE"]""") {
+              Set("POST", "PUT", "GET", "DELETE").contains(jsonDynamicResourceDoc.requestVerb)
+            }
+            _ <- Helper.booleanToFuture(failMsg = s"""$InvalidJsonFormat When request_verb is "GET" or "DELETE", the example_request_body must be a blank String "" or just totally omit the field""") {
+              (jsonDynamicResourceDoc.requestVerb, jsonDynamicResourceDoc.exampleRequestBody) match {
+                case ("GET" | "DELETE", Some(JString(s))) => //we support the empty string "" here
+                  StringUtils.isBlank(s)
+                case ("GET" | "DELETE", Some(requestBody)) => //we add the guard, we forbid any json objects in GET/DELETE request body.
+                  requestBody == JNothing
+                case _ => true
+              }
+            }
+            _ = try {
+              CompiledObjects(jsonDynamicResourceDoc.exampleRequestBody, jsonDynamicResourceDoc.successResponseBody, jsonDynamicResourceDoc.methodBody)
+            } catch {
+              case e: Exception =>
+                val jsonResponse = createErrorJsonResponse(s"$DynamicCodeCompileFail ${e.getMessage}", 400, cc.correlationId)
+                throw JsonResponseException(jsonResponse)
+            }
+
+            (isExists, callContext) <- NewStyle.function.isJsonDynamicResourceDocExists(jsonDynamicResourceDoc.requestVerb, jsonDynamicResourceDoc.requestUrl, Some(cc))
+            _ <- Helper.booleanToFuture(failMsg = s"$DynamicResourceDocAlreadyExists The combination of request_url(${jsonDynamicResourceDoc.requestUrl}) and request_verb(${jsonDynamicResourceDoc.requestVerb}) must be unique") {
+              (!isExists)
+            }
+
+            (dynamicResourceDoc, callContext) <- NewStyle.function.createJsonDynamicResourceDoc(jsonDynamicResourceDoc, callContext)
+          } yield {
+            (dynamicResourceDoc, HttpCode.`201`(callContext))
+          }
+      }
+    }
+
+    staticResourceDocs += ResourceDoc(
+      updateDynamicResourceDoc,
+      implementedInApiVersion,
+      nameOf(updateDynamicResourceDoc),
+      "PUT",
+      "/management/dynamic-resource-docs/DYNAMIC-RESOURCE-DOC-ID",
+      "Update Dynamic Resource Doc",
+      s"""Update a Dynamic Resource Doc.
+         |
+         |The connector_method_body is URL-encoded format String
+         |""",
+      jsonDynamicResourceDoc.copy(dynamicResourceDocId = None),
+      jsonDynamicResourceDoc,
+      List(
+        $UserNotLoggedIn,
+        UserHasMissingRoles,
+        InvalidJsonFormat,
+        UnknownError
+      ),
+      List(apiTagDynamicResourceDoc, apiTagNewStyle),
+      Some(List(canUpdateDynamicResourceDoc)))
+
+    lazy val updateDynamicResourceDoc: OBPEndpoint = {
+      case "management" :: "dynamic-resource-docs" :: dynamicResourceDocId :: Nil JsonPut json -> _ => {
+        cc =>
+          for {
+            dynamicResourceDocBody <- NewStyle.function.tryons(s"$InvalidJsonFormat The Json body should be the $JsonDynamicResourceDoc", 400, cc.callContext) {
+              json.extract[JsonDynamicResourceDoc]
+            }
+
+            _ <- Helper.booleanToFuture(failMsg = s"""$InvalidJsonFormat The request_verb must be one of ["POST", "PUT", "GET", "DELETE"]""") {
+              Set("POST", "PUT", "GET", "DELETE").contains(dynamicResourceDocBody.requestVerb)
+            }
+
+            _ <- Helper.booleanToFuture(failMsg = s"""$InvalidJsonFormat When request_verb is "GET" or "DELETE", the example_request_body must be a blank String""") {
+              (dynamicResourceDocBody.requestVerb, dynamicResourceDocBody.exampleRequestBody) match {
+                case ("GET" | "DELETE", Some(JString(s))) =>
+                  StringUtils.isBlank(s)
+                case ("GET" | "DELETE", Some(requestBody)) =>
+                  requestBody == JNothing
+                case _ => true
+              }
+            }
+
+            _ = try {
+              CompiledObjects(jsonDynamicResourceDoc.exampleRequestBody, jsonDynamicResourceDoc.successResponseBody, jsonDynamicResourceDoc.methodBody)
+            } catch {
+              case e: Exception =>
+                val jsonResponse = createErrorJsonResponse(s"$DynamicCodeCompileFail ${e.getMessage}", 400, cc.correlationId)
+                throw JsonResponseException(jsonResponse)
+            }
+
+            (_, callContext) <- NewStyle.function.getJsonDynamicResourceDocById(dynamicResourceDocId, cc.callContext)
+
+            (dynamicResourceDoc, callContext) <- NewStyle.function.updateJsonDynamicResourceDoc(dynamicResourceDocBody.copy(dynamicResourceDocId = Some(dynamicResourceDocId)), callContext)
+          } yield {
+            (dynamicResourceDoc, HttpCode.`200`(callContext))
+          }
+      }
+    }
+
+    staticResourceDocs += ResourceDoc(
+      deleteDynamicResourceDoc,
+      implementedInApiVersion,
+      nameOf(deleteDynamicResourceDoc),
+      "DELETE",
+      "/management/dynamic-resource-docs/DYNAMIC-RESOURCE-DOC-ID",
+      "Delete Dynamic Resource Doc",
+      s"""Delete a Dynamic Resource Doc.
+         |""",
+      EmptyBody,
+      BooleanBody(true),
+      List(
+        $UserNotLoggedIn,
+        UserHasMissingRoles,
+        InvalidJsonFormat,
+        UnknownError
+      ),
+      List(apiTagDynamicResourceDoc, apiTagNewStyle),
+      Some(List(canDeleteDynamicResourceDoc)))
+
+    lazy val deleteDynamicResourceDoc: OBPEndpoint = {
+      case "management" :: "dynamic-resource-docs" :: dynamicResourceDocId :: Nil JsonDelete _ => {
+        cc =>
+          for {
+            (_, callContext) <- NewStyle.function.getJsonDynamicResourceDocById(dynamicResourceDocId, cc.callContext)
+            (dynamicResourceDoc, callContext) <- NewStyle.function.deleteJsonDynamicResourceDocById(dynamicResourceDocId, callContext)
+          } yield {
+            (dynamicResourceDoc, HttpCode.`204`(callContext))
+          }
+      }
+    }
+
+    staticResourceDocs += ResourceDoc(
+      getDynamicResourceDoc,
+      implementedInApiVersion,
+      nameOf(getDynamicResourceDoc),
+      "GET",
+      "/management/dynamic-resource-docs/DYNAMIC-RESOURCE-DOC-ID",
+      "Get Dynamic Resource Doc by Id",
+      s"""Get a Dynamic Resource Doc by DYNAMIC-RESOURCE-DOC-ID.
+         |
+         |""",
+      EmptyBody,
+      jsonDynamicResourceDoc,
+      List(
+        $UserNotLoggedIn,
+        UserHasMissingRoles,
+        UnknownError
+      ),
+      List(apiTagDynamicResourceDoc, apiTagNewStyle),
+      Some(List(canGetDynamicResourceDoc)))
+
+    lazy val getDynamicResourceDoc: OBPEndpoint = {
+      case "management" :: "dynamic-resource-docs" :: dynamicResourceDocId :: Nil JsonGet _ => {
+        cc =>
+          for {
+            (dynamicResourceDoc, callContext) <- NewStyle.function.getJsonDynamicResourceDocById(dynamicResourceDocId, cc.callContext)
+          } yield {
+            (dynamicResourceDoc, HttpCode.`200`(callContext))
+          }
+      }
+    }
+
+    staticResourceDocs += ResourceDoc(
+      getAllDynamicResourceDocs,
+      implementedInApiVersion,
+      nameOf(getAllDynamicResourceDocs),
+      "GET",
+      "/management/dynamic-resource-docs",
+      "Get all Dynamic Resource Docs",
+      s"""Get all Dynamic Resource Docs.
+         |
+         |""",
+      EmptyBody,
+      ListResult("dynamic-resource-docs", jsonDynamicResourceDoc::Nil),
+      List(
+        $UserNotLoggedIn,
+        UserHasMissingRoles,
+        UnknownError
+      ),
+      List(apiTagDynamicResourceDoc, apiTagNewStyle),
+      Some(List(canGetAllDynamicResourceDocs)))
+
+    lazy val getAllDynamicResourceDocs: OBPEndpoint = {
+      case "management" :: "dynamic-resource-docs" :: Nil JsonGet _ => {
+        cc =>
+          for {
+            (dynamicResourceDocs, callContext) <- NewStyle.function.getJsonDynamicResourceDocs(cc.callContext)
+          } yield {
+            (ListResult("dynamic-resource-docs", dynamicResourceDocs), HttpCode.`200`(callContext))
+          }
+      }
+    }
+
+
+    staticResourceDocs += ResourceDoc(
+      buildDynamicEndpointTemplate,
+      implementedInApiVersion,
+      nameOf(buildDynamicEndpointTemplate),
+      "POST",
+      "/management/dynamic-resource-docs/endpoint-code",
+      "Create Dynamic Resource Doc endpoint code",
+      s"""Create a Dynamic Resource Doc endpoint code.
+         |
+         |copy the response and past to ${nameOf(PractiseEndpoint)}, So you can have the benefits of
+         |auto compilation and debug
+         |""",
+      jsonResourceDocFragment,
+      jsonCodeTemplate,
+      List(
+        $UserNotLoggedIn,
+        InvalidJsonFormat,
+        UnknownError
+      ),
+      List(apiTagDynamicResourceDoc, apiTagNewStyle),
+      None)
+
+    lazy val buildDynamicEndpointTemplate: OBPEndpoint = {
+      case "management" :: "dynamic-resource-docs" :: "endpoint-code" :: Nil JsonPost json -> _ => {
+        cc =>
+          for {
+            resourceDocFragment <- NewStyle.function.tryons(s"$InvalidJsonFormat The Json body should be the $ResourceDocFragment", 400, cc.callContext) {
+              json.extract[ResourceDocFragment]
+            }
+            _ <- Helper.booleanToFuture(failMsg = s"""$InvalidJsonFormat The request_verb must be one of ["POST", "PUT", "GET", "DELETE"]""") {
+               Set("POST", "PUT", "GET", "DELETE").contains(resourceDocFragment.requestVerb)
+            }
+
+            _ <- Helper.booleanToFuture(failMsg = s"""$InvalidJsonFormat When request_verb is "GET" or "DELETE", the example_request_body must be a blank String""") {
+              (resourceDocFragment.requestVerb, resourceDocFragment.exampleRequestBody) match {
+                case ("GET" | "DELETE", Some(JString(s))) =>
+                  StringUtils.isBlank(s)
+                case ("GET" | "DELETE", Some(requestBody)) =>
+                  requestBody == JNothing
+                case _ => true
+              }
+            }
+
+            code = DynamicEndpointCodeGenerator.buildTemplate(resourceDocFragment)
+
+          } yield {
+            ("code" -> URLEncoder.encode(code, "UTF-8"), HttpCode.`201`(cc.callContext))
+          }
+      }
+    }
+
+    staticResourceDocs += ResourceDoc(
+      createDynamicMessageDoc,
+      implementedInApiVersion,
+      nameOf(createDynamicMessageDoc),
+      "POST",
+      "/management/dynamic-message-docs",
+      "Create Dynamic Message Doc",
+      s"""Create a Dynamic Message Doc.
+         |""",
+      jsonDynamicMessageDoc.copy(dynamicMessageDocId=None),
+      jsonDynamicMessageDoc,
+      List(
+        $UserNotLoggedIn,
+        UserHasMissingRoles,
+        InvalidJsonFormat,
+        UnknownError
+      ),
+      List(apiTagDynamicMessageDoc, apiTagNewStyle),
+      Some(List(canCreateDynamicMessageDoc)))
+
+    lazy val createDynamicMessageDoc: OBPEndpoint = {
+      case "management" :: "dynamic-message-docs" :: Nil JsonPost json -> _ => {
+        cc =>
+          for {
+            dynamicMessageDoc <- NewStyle.function.tryons(s"$InvalidJsonFormat The Json body should be the $JsonDynamicMessageDoc", 400, cc.callContext) {
+              json.extract[JsonDynamicMessageDoc]
+            }
+            (dynamicMessageDocExisted, callContext) <- NewStyle.function.isJsonDynamicMessageDocExists(dynamicMessageDoc.process, cc.callContext)
+            _ <- Helper.booleanToFuture(failMsg = s"$DynamicMessageDocAlreadyExists The json body process(${dynamicMessageDoc.process}) already exists") {
+              (!dynamicMessageDocExisted)
+            }
+            connectorMethod = DynamicConnector.createFunction(dynamicMessageDoc.process, dynamicMessageDoc.decodedMethodBody)
+            errorMsg = if(connectorMethod.isEmpty) s"$ConnectorMethodBodyCompileFail ${connectorMethod.asInstanceOf[Failure].msg}" else ""
+            _ <- Helper.booleanToFuture(failMsg = errorMsg) {
+              connectorMethod.isDefined
+            }
+            (dynamicMessageDoc, callContext) <- NewStyle.function.createJsonDynamicMessageDoc(dynamicMessageDoc, callContext)
+          } yield {
+            (dynamicMessageDoc, HttpCode.`201`(callContext))
+          }
+      }
+    }
+
+    staticResourceDocs += ResourceDoc(
+      updateDynamicMessageDoc,
+      implementedInApiVersion,
+      nameOf(updateDynamicMessageDoc),
+      "PUT",
+      "/management/dynamic-message-docs/DYNAMIC-MESSAGE-DOC-ID",
+      "Update Dynamic Message Doc",
+      s"""Update a Dynamic Message Doc.
+         |""",
+      jsonDynamicMessageDoc.copy(dynamicMessageDocId=None),
+      jsonDynamicMessageDoc,
+      List(
+        $UserNotLoggedIn,
+        UserHasMissingRoles,
+        InvalidJsonFormat,
+        UnknownError
+      ),
+      List(apiTagDynamicMessageDoc, apiTagNewStyle),
+      Some(List(canUpdateDynamicMessageDoc)))
+
+    lazy val updateDynamicMessageDoc: OBPEndpoint = {
+      case "management" :: "dynamic-message-docs" :: dynamicMessageDocId :: Nil JsonPut json -> _ => {
+        cc =>
+          for {
+            dynamicMessageDocBody <- NewStyle.function.tryons(s"$InvalidJsonFormat The Json body should be the $JsonDynamicMessageDoc", 400, cc.callContext) {
+              json.extract[JsonDynamicMessageDoc]
+            }
+            connectorMethod = DynamicConnector.createFunction(dynamicMessageDocBody.process, dynamicMessageDocBody.decodedMethodBody)
+            errorMsg = if(connectorMethod.isEmpty) s"$ConnectorMethodBodyCompileFail ${connectorMethod.asInstanceOf[Failure].msg}" else ""
+            _ <- Helper.booleanToFuture(failMsg = errorMsg) {
+              connectorMethod.isDefined
+            }
+            (_, callContext) <- NewStyle.function.getJsonDynamicMessageDocById(dynamicMessageDocId, cc.callContext)
+            (dynamicMessageDoc, callContext) <- NewStyle.function.updateJsonDynamicMessageDoc(dynamicMessageDocBody.copy(dynamicMessageDocId=Some(dynamicMessageDocId)), callContext)
+          } yield {
+            (dynamicMessageDoc, HttpCode.`200`(callContext))
+          }
+      }
+    }
+
+    staticResourceDocs += ResourceDoc(
+      getDynamicMessageDoc,
+      implementedInApiVersion,
+      nameOf(getDynamicMessageDoc),
+      "GET",
+      "/management/dynamic-message-docs/DYNAMIC-MESSAGE-DOC-ID",
+      "Get Dynamic Message Doc by Id",
+      s"""Get a Dynamic Message Doc by DYNAMIC-MESSAGE-DOC-ID.
+         |
+         |""",
+      EmptyBody,
+      jsonDynamicMessageDoc,
+      List(
+        $UserNotLoggedIn,
+        UserHasMissingRoles,
+        UnknownError
+      ),
+      List(apiTagDynamicMessageDoc, apiTagNewStyle),
+      Some(List(canGetDynamicMessageDoc)))
+
+    lazy val getDynamicMessageDoc: OBPEndpoint = {
+      case "management" :: "dynamic-message-docs" :: dynamicMessageDocId :: Nil JsonGet _ => {
+        cc =>
+          for {
+            (dynamicMessageDoc, callContext) <- NewStyle.function.getJsonDynamicMessageDocById(dynamicMessageDocId, cc.callContext)
+          } yield {
+            (dynamicMessageDoc, HttpCode.`200`(callContext))
+          }
+      }
+    }
+
+    staticResourceDocs += ResourceDoc(
+      getAllDynamicMessageDocs,
+      implementedInApiVersion,
+      nameOf(getAllDynamicMessageDocs),
+      "GET",
+      "/management/dynamic-message-docs",
+      "Get all Dynamic Message Docs",
+      s"""Get all Dynamic Message Docs.
+         |
+         |""",
+      EmptyBody,
+      ListResult("dynamic-message-docs", jsonDynamicMessageDoc::Nil),
+      List(
+        $UserNotLoggedIn,
+        UserHasMissingRoles,
+        UnknownError
+      ),
+      List(apiTagDynamicMessageDoc, apiTagNewStyle),
+      Some(List(canGetAllDynamicMessageDocs)))
+
+    lazy val getAllDynamicMessageDocs: OBPEndpoint = {
+      case "management" :: "dynamic-message-docs" :: Nil JsonGet _ => {
+        cc =>
+          for {
+            (dynamicMessageDocs, callContext) <- NewStyle.function.getJsonDynamicMessageDocs(cc.callContext)
+          } yield {
+            (ListResult("dynamic-message-docs", dynamicMessageDocs), HttpCode.`200`(callContext))
+          }
+      }
+    }
+
+    staticResourceDocs += ResourceDoc(
+      deleteDynamicMessageDoc,
+      implementedInApiVersion,
+      nameOf(deleteDynamicMessageDoc),
+      "DELETE",
+      "/management/dynamic-message-docs/DYNAMIC-MESSAGE-DOC-ID",
+      "Delete Dynamic Message Doc",
+      s"""Delete a Dynamic Message Doc.
+         |""",
+      EmptyBody,
+      BooleanBody(true),
+      List(
+        $UserNotLoggedIn,
+        UserHasMissingRoles,
+        InvalidJsonFormat,
+        UnknownError
+      ),
+      List(apiTagDynamicMessageDoc, apiTagNewStyle),
+      Some(List(canDeleteDynamicMessageDoc)))
+
+    lazy val deleteDynamicMessageDoc: OBPEndpoint = {
+      case "management" :: "dynamic-message-docs" :: dynamicMessageDocId :: Nil JsonDelete _ => {
+        cc =>
+          for {
+            (_, callContext) <- NewStyle.function.getJsonDynamicMessageDocById(dynamicMessageDocId, cc.callContext)
+            (dynamicResourceDoc, callContext) <- NewStyle.function.deleteJsonDynamicMessageDocById(dynamicMessageDocId, callContext)
+          } yield {
+            (dynamicResourceDoc, HttpCode.`204`(callContext))
           }
       }
     }

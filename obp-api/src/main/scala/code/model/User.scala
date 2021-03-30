@@ -78,6 +78,12 @@ case class UserExtended(val user: User) extends MdcLoggable {
   final def hasOwnerViewAccess(bankIdAccountId: BankIdAccountId): Boolean = {
     checkOwnerViewAccessAndReturnOwnerView(bankIdAccountId).isDefined
   }
+  final def hasViewAccess(bankIdAccountId: BankIdAccountId, viewId: ViewId): Boolean = {
+    APIUtil.checkViewAccessAndReturnView(
+      viewId, 
+      bankIdAccountId, Some(this.user)
+    ).isDefined
+  }
 
   def assignedEntitlements : List[Entitlement] = {
     Entitlement.entitlement.vend.getEntitlementsByUserId(userId) match {
@@ -131,8 +137,8 @@ object UserX {
     }
   }
 
-  def createResourceUser(provider: String, providerId: Option[String], name: Option[String], email: Option[String], userId: Option[String]) = {
-    Users.users.vend.createResourceUser(provider, providerId, name, email, userId)
+  def createResourceUser(provider: String, providerId: Option[String], createdByConsentId: Option[String], name: Option[String], email: Option[String], userId: Option[String]) = {
+    Users.users.vend.createResourceUser(provider, providerId, createdByConsentId, name, email, userId)
   }
 
   def createUnsavedResourceUser(provider: String, providerId: Option[String], name: Option[String], email: Option[String], userId: Option[String]) = {

@@ -69,7 +69,7 @@ object MappedConsentProvider extends ConsentProvider {
     }
   }
   override def createBerlinGroupConsent(
-    user: User,
+    user: Option[User],
     recurringIndicator: Boolean,
     validUntil: Date,
     frequencyPerDay: Int,
@@ -79,33 +79,26 @@ object MappedConsentProvider extends ConsentProvider {
     tryo {
       MappedConsent
         .create
-        .mUserId(user.userId)
+        .mUserId(user.map(_.userId).getOrElse(null))
         .mStatus(ConsentStatus.RECEIVED.toString)
         .mRecurringIndicator(recurringIndicator)
         .mValidUntil(validUntil)
         .mFrequencyPerDay(frequencyPerDay)
+        .mUsesSoFarTodayCounter(0)
+        .mUsesSoFarTodayCounterUpdatedAt(new Date())
         .mCombinedServiceIndicator(combinedServiceIndicator)
         .mLastActionDate(now) //maybe not right, but for the create we use the `now`, we need to update it later.
         .mApiVersion(apiVersion.getOrElse(null))
         .mApiStandard(apiStandard.getOrElse(null))
         .saveMe()
     }}
-  override def updateBerlinGroupConsent(
-                                         consentId: String,
-    user: User,
-    recurringIndicator: Boolean,
-    validUntil: Date,
-    frequencyPerDay: Int,
-    combinedServiceIndicator: Boolean) ={
+  override def updateBerlinGroupConsent(consentId: String,
+                                        usesSoFarTodayCounter: Int) ={
     MappedConsent.find(By(MappedConsent.mConsentId, consentId)) match {
       case Full(consent) =>
         tryo(consent
-          .mUserId(user.userId)
-          .mRecurringIndicator(recurringIndicator)
-          .mValidUntil(validUntil)
-          .mFrequencyPerDay(frequencyPerDay)
-          .mCombinedServiceIndicator(combinedServiceIndicator)
-          .mLastActionDate(now) //maybe not right, but for the create we use the `now`, we need to update it later.
+          .mUsesSoFarTodayCounter(usesSoFarTodayCounter)
+          .mUsesSoFarTodayCounterUpdatedAt(now)
           .saveMe()
         )
       case Empty =>
@@ -242,6 +235,8 @@ class MappedConsent extends Consent with LongKeyedMapper[MappedConsent] with IdP
   object mRecurringIndicator extends MappedBoolean(this)
   object mValidUntil extends MappedDate(this)
   object mFrequencyPerDay extends MappedInt(this)
+  object mUsesSoFarTodayCounter extends MappedInt(this)
+  object mUsesSoFarTodayCounterUpdatedAt extends MappedDateTime(this)
   object mCombinedServiceIndicator extends MappedBoolean(this)
   object mLastActionDate extends MappedDate(this)
 
@@ -266,6 +261,8 @@ class MappedConsent extends Consent with LongKeyedMapper[MappedConsent] with IdP
   override def recurringIndicator: Boolean = mRecurringIndicator.get
   override def validUntil = mValidUntil.get
   override def frequencyPerDay = mFrequencyPerDay.get
+  override def usesSoFarTodayCounter = mUsesSoFarTodayCounter.get
+  override def usesSoFarTodayCounterUpdatedAt = mUsesSoFarTodayCounterUpdatedAt.get
   override def combinedServiceIndicator = mCombinedServiceIndicator.get
   override def lastActionDate = mLastActionDate.get
 

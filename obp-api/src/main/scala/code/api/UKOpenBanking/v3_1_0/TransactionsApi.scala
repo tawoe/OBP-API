@@ -762,7 +762,7 @@ object APIMethods_TransactionsApi extends RestHelper {
              params <- Future { createQueriesByHttpParams(callContext.get.requestHeaders)} map {
                x => fullBoxOrException(x ~> APIFailureNewStyle(UnknownError, 400, callContext.map(_.toLight)))
              } map { unboxFull(_) }
-             (transactions, callContext) <- account.getModeratedTransactionsFuture(bank, Full(u), view, BankIdAccountId(account.bankId,account.accountId), callContext, params) map {
+             (transactions, callContext) <- account.getModeratedTransactionsFuture(bank, Full(u), view, callContext, params) map {
                x => fullBoxOrException(x ~> APIFailureNewStyle(UnknownError, 400, callContext.map(_.toLight)))
              } map { unboxFull(_) }
              (moderatedAttributes: List[TransactionAttribute], callContext) <- NewStyle.function.getModeratedAttributesByTransactions(
@@ -1032,7 +1032,7 @@ object APIMethods_TransactionsApi extends RestHelper {
                for{
                  view <- u.checkOwnerViewAccessAndReturnOwnerView(BankIdAccountId(bankAccount.bankId, bankAccount.accountId))
                  params <- createQueriesByHttpParams(callContext.get.requestHeaders)
-                 (transactionRequests, callContext) <- Connector.connector.vend.getTransactionRequests210(u, bankAccount)
+                 (transactionRequests, callContext) <- Connector.connector.vend.getTransactionRequests210(u, bankAccount, callContext)
                  (transactions, callContext) <-  bankAccount.getModeratedTransactions(bank, Full(u), view, BankIdAccountId(bankAccount.bankId, bankAccount.accountId), callContext, params)
                } yield{
                  (transactionRequests,transactions)

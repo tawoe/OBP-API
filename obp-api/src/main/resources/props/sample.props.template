@@ -112,9 +112,11 @@ read_authentication_type_validation_requires_role=false
 #This is the api instance, we create kafka topic based on this number, each instance should have each own id. use it in load balancing + Kafka setup
 #api_instance_id=1
 
+## DEPRECATED
 ## Enable user authentication via kafka
 #kafka.user.authentication=true
 
+## DEPRECATED
 ## Enable user authentication via obpjvm
 #obpjvm.user.authentication=true
 
@@ -827,7 +829,8 @@ database_messages_scheduler_interval=3600
                                                     ReadBalances,\
                                                     ReadTransactionsBasic,\
                                                     ReadTransactionsDebits,\
-                                                    ReadTransactionsDetail
+                                                    ReadTransactionsDetail, \
+                                                    ReadAccountsBerlinGroup
 # -----------------------------------------------------------------------------
                       
 
@@ -915,3 +918,12 @@ outboundAdapterCallContext.generalContext
 ### enable or disable the feature of send "Force-Error" header, default value is false
 enable.force_error=false
 
+# Suggested default SCA method
+# In case is not defined default value is SMS
+# Possible values: SMS, EMAIL, DUMMY, SMS_OTP, CHIP_OTP, PHOTO_OTP, PUSH_OTP
+# suggested_default_sca_method=DUMMY
+
+
+## This props is used for the User Onboard page, we can have the default identifier key.
+## The different banks may have different identifiers for their customers, eg: CUSTOMER_NUMBER, TAX_ID, PASSPORT_NUMBER ...
+default_auth_context_update_request_key=CUSTOMER_NUMBER
