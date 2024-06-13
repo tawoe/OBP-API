@@ -264,7 +264,6 @@
             </execution>
           </executions>
           <configuration>
-            <dotGitDirectory>${project.basedir}/.git</dotGitDirectory>
             <generateGitPropertiesFile>true</generateGitPropertiesFile>
             <generateGitPropertiesFilename>src/main/resources/git.properties</generateGitPropertiesFilename>
             <failOnNoGitDirectory>false</failOnNoGitDirectory>

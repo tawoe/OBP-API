@@ -1,6 +1,8 @@
 FROM jetty:9.4-jdk11-alpine
 # Copy build artifact (.war file) into jetty from 'maven' stage.
 COPY /obp-api/target/obp-api-1.*.war /var/lib/jetty/webapps/ROOT.war
+# Run jetty in production mode
+ENV JAVA_OPTIONS='-Drun.mode=production'
 USER root
 RUN mkdir -p /WEB-INF/classes
 COPY .github/logback.xml /WEB-INF/classes/
