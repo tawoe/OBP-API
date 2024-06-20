@@ -97,7 +97,7 @@ trait APIMethods510 {
           for {
             _ <- Future() // Just start async call
           } yield {
-            (JSONFactory510.getApiInfoJSON(OBPAPI5_1_0.version,OBPAPI5_1_0.versionStatus), HttpCode.`200`(cc.callContext))
+            (JSONFactory510.getApiInfoJSON(OBPAPI5_1_0.version,"latest_bteuf"), HttpCode.`200`(cc.callContext))
           }
       }
     }
