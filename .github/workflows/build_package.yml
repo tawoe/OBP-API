@@ -6,12 +6,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     services:
-      # Label used to access the service container
       redis:
-        # Docker Hub image
         image: redis
         ports:
-          # Opens tcp port 6379 on the host and service container
           - 6379:6379
         # Set health checks to wait until redis has started
         options: >-
@@ -27,14 +24,12 @@ jobs:
           REPO: ${{ github.repository }}
           WORKFLOW_FILE_NAME: build_package.yml
         run: |
-          # Fetch all in-progress workflow runs for the specific workflow
           IN_PROGRESS_RUNS=$(curl -s \
             -H "Authorization: token $GITHUB_TOKEN" \
             -H "Accept: application/vnd.github.v3+json" \
             "https://api.github.com/repos/$OWNER/$REPO/actions/workflows/$WORKFLOW_FILE_NAME/runs?status=in_progress" \
             | jq -r '.workflow_runs | if . == null then empty else .[].id end')
         
-          # Check if IN_PROGRESS_RUNS is empty
           if [ -z "$IN_PROGRESS_RUNS" ]; then
             echo "No in-progress runs to cancel."
           else
