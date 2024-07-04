@@ -17,6 +17,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
+      - uses: actions/checkout@v3
       - name: Cancel Previous In-progress Runs
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -46,7 +47,6 @@ jobs:
           fi
         
           echo "Previous in-progress runs cancelled, if any were found."
-      - uses: actions/checkout@v3
       - name: Set up JDK 11
         uses: actions/setup-java@v2
         with:
