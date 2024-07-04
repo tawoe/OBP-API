@@ -31,7 +31,7 @@ jobs:
             -H "Accept: application/vnd.github.v3+json" \
             "https://api.github.com/repos/$OWNER/$REPO/actions/workflows/$WORKFLOW_FILE_NAME/runs?status=in_progress" \
              | jq -r --arg CURRENT_RUN_ID "$CURRENT_RUN_ID" '.workflow_runs | if . == null then empty else .[] | select(.id != ($CURRENT_RUN_ID | tonumber)) end | .id')
-        
+          echo $IN_PROGRESS_RUNS        
           if [ -z "$IN_PROGRESS_RUNS" ]; then
             echo "No in-progress runs to cancel."
           else
