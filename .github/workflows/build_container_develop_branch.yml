@@ -32,7 +32,7 @@ jobs:
                owner: context.repo.owner,
                repo: context.repo.repo,
                artifact_id: matchArtifact.id,
-               archive_format: 'zip'
+               archive_format: 'zip',
             });
             var fs = require('fs');
             fs.writeFileSync('${{github.workspace}}/push.zip', Buffer.from(download.data));
