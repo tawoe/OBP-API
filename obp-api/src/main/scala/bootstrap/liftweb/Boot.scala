@@ -339,6 +339,12 @@ class Boot extends MdcLoggable {
      }
     }
 
+    // start RabbitMq Adatper
+    if (APIUtil.getPropsAsBoolValue("rabbitmq.adapter.enabled", false)) {
+      code.bankconnectors.rabbitmq.Adapter.startRabbitMqAdapter.main(Array(""))
+    }
+    
+
     // Database query timeout
 //    APIUtil.getPropsValue("database_query_timeout_in_seconds").map { timeoutInSeconds =>
 //      tryo(timeoutInSeconds.toInt).isDefined match {

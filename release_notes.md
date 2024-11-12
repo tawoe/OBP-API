@@ -3,6 +3,7 @@
 ### Most recent changes at top of file
 ```
 Date          Commit        Action
+12/11/2024    d2e711b4      Added props rabbitmq.adapter.enabled, default is false
 12/11/2024    a5253b4e      Added props rabbitmq.use.ssl, default is false
 30/10/2024    e69161b6      set V121, V130 and V200 status to DEPRECATED
 29/10/2024    c83032f0      added the props for RabbitMq connector:

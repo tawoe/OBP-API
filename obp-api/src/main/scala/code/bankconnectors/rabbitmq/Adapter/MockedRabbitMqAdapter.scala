@@ -17,8 +17,9 @@ import scala.concurrent.Future
 import com.openbankproject.commons.ExecutionContext.Implicits.global
 import code.bankconnectors.rabbitmq.RabbitMQUtils._
 import java.util.Date
+import code.util.Helper.MdcLoggable
 
-class ServerCallback(val ch: Channel) extends DeliverCallback {
+class ServerCallback(val ch: Channel) extends DeliverCallback with MdcLoggable{
 
   private implicit val formats = code.api.util.CustomJsonFormats.nullTolerateFormats
 
@@ -33,7 +34,7 @@ class ServerCallback(val ch: Channel) extends DeliverCallback {
       .messageId(obpMessageId)
       .build
     val message = new String(delivery.getBody, "UTF-8")
-    println(s"Request: OutBound message from OBP: methodId($obpMessageId) : message is $message ")
+     logger.debug(s"Request: OutBound message from OBP: methodId($obpMessageId) : message is $message ")
 
     try {
       val responseToOBP = if (obpMessageId.contains("obp_get_banks")) {
@@ -3053,10 +3054,10 @@ class ServerCallback(val ch: Channel) extends DeliverCallback {
       }
       
       response = responseToOBP.map(a => write(a)).map("" + _)
-      response.map(res => println(s"Response: inBound message to OBP: process($obpMessageId) : message is $res "))
+      response.map(res =>  logger.debug(s"Response: inBound message to OBP: process($obpMessageId) : message is $res "))
       response
     } catch {
-      case e: Throwable => println("Unknown exception: " + e.toString)
+      case e: Throwable =>  logger.error("Unknown exception: " + e.toString)
 
     } finally {
       response.map(res => ch.basicPublish("", delivery.getProperties.getReplyTo, replyProps, res.getBytes("UTF-8")))
@@ -3066,7 +3067,7 @@ class ServerCallback(val ch: Channel) extends DeliverCallback {
 
 }
 
-object RPCServer extends App {
+object MockedRabbitMqAdapter extends App with MdcLoggable{
   private val RPC_QUEUE_NAME = "obp_rpc_queue"
   
   DB.defineConnectionManager(net.liftweb.util.DefaultConnectionIdentifier, APIUtil.vendor)
@@ -3097,7 +3098,7 @@ object RPCServer extends App {
     // stop after one consumed message since this is example code
     val serverCallback = new ServerCallback(channel)
     channel basicConsume(RPC_QUEUE_NAME, false, serverCallback, _ => {})
-    println("Start awaiting OBP Connector Requests:")
+    logger.info("Start awaiting OBP Connector Requests:")
   } catch {
     case e: Exception => e.printStackTrace()
   } finally {
@@ -3105,9 +3106,24 @@ object RPCServer extends App {
       try {
         //          connection.close()
       } catch {
-        case e: Exception => println(s"unknown Exception:$e")
+        case e: Exception =>  logger.error(s"unknown Exception:$e")
       }
     }
   }
 
+}
+
+/**
+ * This adapter is only for testing poplors, not ready for the production
+ */
+object startRabbitMqAdapter {
+  def main(args: Array[String]): Unit = {
+    val thread = new Thread(new Runnable {
+      override def run(): Unit = {
+        MockedRabbitMqAdapter.main(Array.empty)  
+      }
+    })
+    thread.start()
+    thread.join()
+  }
 }

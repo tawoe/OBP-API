@@ -838,6 +838,9 @@ featured_apis=elasticSearchWarehouseV300
 # rabbitmq_connector.port=5672
 # rabbitmq_connector.username=obp
 # rabbitmq_connector.password=obp
+# -- RabbitMQ Adapter --------------------------------------------
+#rabbitmq.adapter.enabled=false
+
 
  
 # -- Scopes -----------------------------------------------------
