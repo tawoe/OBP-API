@@ -43,6 +43,7 @@ import code.api.ResourceDocs1_4_0._
 import code.api._
 import code.api.attributedefinition.AttributeDefinition
 import code.api.cache.Redis
+import code.api.util.ApiRole.CanCreateEntitlementAtAnyBank
 import code.api.util.APIUtil.{enableVersionIfAllowed, errorJsonResponse, getPropsValue, gitCommit}
 import code.api.util._
 import code.api.util.migration.Migration
@@ -76,7 +77,7 @@ import code.dynamicMessageDoc.DynamicMessageDoc
 import code.dynamicResourceDoc.DynamicResourceDoc
 import code.endpointMapping.EndpointMapping
 import code.endpointTag.EndpointTag
-import code.entitlement.MappedEntitlement
+import code.entitlement.{Entitlement, MappedEntitlement}
 import code.entitlementrequest.MappedEntitlementRequest
 import code.fx.{MappedCurrency, MappedFXRate}
 import code.kafka.{KafkaHelperActors, OBPKafkaConsumer}
@@ -317,6 +318,8 @@ class Boot extends MdcLoggable {
 
     //see the notes for this method:
     createDefaultBankAndDefaultAccountsIfNotExisting()
+    
+    createBootstrapSuperUser()
     
     //launch the scheduler to clean the database from the expired tokens and nonces, 1 hour
     DataBaseCleanerScheduler.start(intervalInSeconds = 60*60)
@@ -593,7 +596,11 @@ class Boot extends MdcLoggable {
       OAuthWorkedThanks.menu, //OAuth thanks page that will do the redirect
       Menu.i("Introduction") / "introduction",
       Menu.i("add-user-auth-context-update-request") / "add-user-auth-context-update-request",
-      Menu.i("confirm-user-auth-context-update-request") / "confirm-user-auth-context-update-request"
+      Menu.i("confirm-user-auth-context-update-request") / "confirm-user-auth-context-update-request",
+      Menu.i("confirm-bg-consent-request") / "confirm-bg-consent-request" >> AuthUser.loginFirst,//OAuth consent page,
+      Menu.i("confirm-bg-consent-request-sca") / "confirm-bg-consent-request-sca" >> AuthUser.loginFirst,//OAuth consent page,
+      Menu.i("confirm-vrp-consent-request") / "confirm-vrp-consent-request" >> AuthUser.loginFirst,//OAuth consent page,
+      Menu.i("confirm-vrp-consent") / "confirm-vrp-consent" >> AuthUser.loginFirst //OAuth consent page
     ) ++ accountCreation ++ Admin.menus
     
     // Build SiteMap
@@ -950,6 +957,60 @@ class Boot extends MdcLoggable {
         logger.debug(s"creating BankAccount(${defaultBankId}, $outgoingAccountId).")
     }
   }
+  
+  
+  /**    
+   * Bootstrap Super User
+   * Given the following credentials, OBP will create a user *if it does not exist already*.
+   * This user's password will be valid for a limited amount of time.
+   * This user will be granted ONLY CanCreateEntitlementAtAnyBank
+   * This feature can also be used in a "Break Glass scenario"
+   */
+  private def createBootstrapSuperUser() ={
+    
+    val superAdminUsername = APIUtil.getPropsValue("super_admin_username","")
+    val superAdminInitalPassword = APIUtil.getPropsValue("super_admin_inital_password","")
+    val superAdminEmail = APIUtil.getPropsValue("super_admin_email","")
+
+    val isPropsNotSetProperly = superAdminUsername==""||superAdminInitalPassword ==""||superAdminEmail==""
+
+    //This is the logic to check if an AuthUser exists for the `create sandbox` endpoint, AfterApiAuth, OpenIdConnect ,,,
+    val existingAuthUser = AuthUser.find(By(AuthUser.username, superAdminUsername))
+    
+    if(isPropsNotSetProperly) {
+      //Nothing happens, props is not set
+    }else if(existingAuthUser.isDefined) {
+      logger.error(s"createBootstrapSuperUser- Errors:  Existing AuthUser with username ${superAdminUsername} detected in data import where no ResourceUser was found")
+    } else {
+      val authUser = AuthUser.create
+        .email(superAdminEmail)
+        .firstName(superAdminUsername)
+        .lastName(superAdminUsername)
+        .username(superAdminUsername)
+        .password(superAdminInitalPassword)
+        .passwordShouldBeChanged(true)
+        .validated(true)
+
+      val validationErrors = authUser.validate
+
+      if(!validationErrors.isEmpty)
+        logger.error(s"createBootstrapSuperUser- Errors: ${validationErrors.map(_.msg)}")
+      else {
+        Full(authUser.save()) //this will create/update the resourceUser.
+
+        val userBox = Users.users.vend.getUserByProviderAndUsername(authUser.getProvider(), authUser.username.get)
+  
+        val resultBox = userBox.map(user => Entitlement.entitlement.vend.addEntitlement("", user.userId, CanCreateEntitlementAtAnyBank.toString))
+        
+        if(resultBox.isEmpty){
+          logger.error(s"createBootstrapSuperUser- Errors: ${resultBox}")
+        }
+      }
+
+    }
+ 
+  }
+  
 }
 
 object ToSchemify {

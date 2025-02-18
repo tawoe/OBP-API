@@ -43,6 +43,12 @@ trait V510ServerSetup extends ServerSetupWithTestData with DefaultUsers {
     bank.id
   }
 
+  def randomPrivateAccount(bankId: String): AccountJSON = {
+    val accountsJson = getPrivateAccounts(bankId, user1).body.extract[AccountsJSON].accounts
+    val randomPosition = nextInt(accountsJson.size)
+    accountsJson(randomPosition)
+  }
+
   def getPrivateAccountsViaEndpoint(bankId : String, consumerAndToken: Option[(Consumer, Token)]) : APIResponse = {
     val request = v5_1_0_Request / "banks" / bankId / "accounts" / "private" <@(consumerAndToken)
     makeGetRequest(request)

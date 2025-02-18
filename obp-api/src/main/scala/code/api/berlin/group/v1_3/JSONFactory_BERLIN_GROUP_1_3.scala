@@ -529,13 +529,18 @@ object JSONFactory_BERLIN_GROUP_1_3 extends CustomJsonFormats {
 
     getPropsValue("psu_authentication_method") match {
       case Full("redirection") =>
-        val scaRedirectUrl = getPropsValue("psu_authentication_method_sca_redirect_url")
+        val scaRedirectUrlPattern = getPropsValue("psu_authentication_method_sca_redirect_url")
           .openOr(MissingPropsValueAtThisInstance + "psu_authentication_method_sca_redirect_url")
+        val scaRedirectUrl =
+          if(scaRedirectUrlPattern.contains("PLACEHOLDER"))
+            scaRedirectUrlPattern.replace("PLACEHOLDER", consent.consentId)
+          else
+            s"$scaRedirectUrlPattern/${consent.consentId}"
         PostConsentResponseJson(
           consentId = consent.consentId,
           consentStatus = consent.status.toLowerCase(),
           _links = ConsentLinksV13(
-            scaRedirect = Some(Href(s"$scaRedirectUrl/${consent.consentId}")),
+            scaRedirect = Some(Href(s"$scaRedirectUrl")),
             status = Some(Href(s"/v1.3/consents/${consent.consentId}/status")),
             scaStatus = Some(Href(s"/v1.3/consents/${consent.consentId}/authorisations/AUTHORISATIONID")),
           )
@@ -632,8 +637,8 @@ object JSONFactory_BERLIN_GROUP_1_3 extends CustomJsonFormats {
 //      Remark: This code may be
     //map OBP transactionRequestId to BerlinGroup PaymentId
     val paymentId = transactionRequest.id.value
-    val scaRedirectUrl = getPropsValue("psu_authentication_method_sca_redirect_url")
-      .openOr(MissingPropsValueAtThisInstance + "psu_authentication_method_sca_redirect_url")
+    val scaRedirectUrl = getPropsValue("psu_make_payment_sca_redirect_url")
+      .openOr(MissingPropsValueAtThisInstance + "psu_make_payment_sca_redirect_url")
     InitiatePaymentResponseJson(
       transactionStatus = transactionRequest.status match {
         case "COMPLETED" => "ACCP"
@@ -641,7 +646,7 @@ object JSONFactory_BERLIN_GROUP_1_3 extends CustomJsonFormats {
       },
       paymentId = paymentId,
       _links = InitiatePaymentResponseLinks(
-        scaRedirect = LinkHrefJson(s"$scaRedirectUrl/payments/$paymentId"),
+        scaRedirect = LinkHrefJson(s"$scaRedirectUrl/$paymentId"),
         self = LinkHrefJson(s"/v1.3/payments/sepa-credit-transfers/$paymentId"),
         status = LinkHrefJson(s"/v1.3/payments/$paymentId/status"),
         scaStatus = LinkHrefJson(s"/v1.3/payments/$paymentId/authorisations/${paymentId}")

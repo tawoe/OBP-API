@@ -339,7 +339,7 @@ case class BankAccountExtended(val bankAccount: BankAccount) extends MdcLoggable
     if(APIUtil.hasAccountAccess(view, BankIdAccountId(bankId, accountId), user, callContext)) {
       for {
         (transactions, callContext)  <- Connector.connector.vend.getTransactions(bankId, accountId, callContext, queryParams) map {
-          x => (unboxFullOrFail(x._1, callContext, InvalidConnectorResponse, 400), x._2)
+          x => (unboxFullOrFail(x._1, callContext, InvalidConnectorResponseForGetTransactions, 400), x._2)
         }
       } yield {
         view.moderateTransactionsWithSameAccount(bank, transactions) match {

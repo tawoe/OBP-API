@@ -27,9 +27,8 @@ TESOBE (http://www.tesobe.com/)
 package code.snippet
 
 import java.util
-
 import code.api.{Constant, DirectLogin}
-import code.api.util.{APIUtil, ErrorMessages, X509}
+import code.api.util.{APIUtil, ErrorMessages, KeycloakAdmin, X509}
 import code.consumer.Consumers
 import code.model.dataAccess.AuthUser
 import code.model.{Consumer, _}
@@ -176,6 +175,10 @@ class ConsumerRegistration extends MdcLoggable {
           oAuth2Client
         })
       }
+
+      // In case we use Keycloak as Identity Provider we create corresponding client at Keycloak side a well
+      if(KeycloakAdmin.integrateWithKeycloak) KeycloakAdmin.createKeycloakConsumer(consumer)
+
       val registerConsumerSuccessMessageWebpage = getWebUiPropsValue(
         "webui_register_consumer_success_message_webpage", 
         "Thanks for registering your consumer with the Open Bank Project API! Here is your developer information. Please save it in a secure location.")

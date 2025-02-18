@@ -664,7 +664,7 @@ where the consent was directly managed between ASPSP and PSU e.g. in a re-direct
                       "lastActionDate": "2019-06-30",
                       "consentStatus": "received"
                     }"""),
-       List(UserNotLoggedIn, UnknownError),
+       List(UserNotLoggedIn, ConsentNotFound, UnknownError),
        ApiTag("Account Information Service (AIS)") :: apiTagBerlinGroupM :: Nil
      )
 
@@ -672,11 +672,14 @@ where the consent was directly managed between ASPSP and PSU e.g. in a re-direct
        case "consents" :: consentId :: Nil JsonGet _ => {
          cc =>
            for {
-             (Full(u), callContext) <- authenticatedAccess(cc)
+             (_, callContext) <- applicationAccess(cc)
              _ <- passesPsd2Aisp(callContext)
              consent <- Future(Consents.consentProvider.vend.getConsentByConsentId(consentId)) map {
                unboxFullOrFail(_, callContext, s"$ConsentNotFound ($consentId)")
-               }
+             }
+             _ <- Helper.booleanToFuture(failMsg = s"${consent.mConsumerId.get} != ${cc.consumer.map(_.consumerId.get).getOrElse("None")}", failCode = 404, cc = cc.callContext) {
+               consent.mConsumerId.get == callContext.map(_.consumer.map(_.consumerId.get).getOrElse("None")).getOrElse("None")
+             }
            } yield {
              (createGetConsentResponseJson(consent), HttpCode.`200`(callContext))
            }

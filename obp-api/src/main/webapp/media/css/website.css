@@ -408,6 +408,7 @@ input{
 }
 
 #add-user-auth-context-update-request-div form,
+#confirm-bg-consent-request-sca form,
 #confirm-user-auth-context-update-request-div form{
 	max-width: 500px;
 	margin: 0 auto;
@@ -415,6 +416,7 @@ input{
 }
 
 #add-user-auth-context-update-request-div #identifier-error-div,
+#confirm-bg-consent-request-sca #identifier-error-div,
 #confirm-user-auth-context-update-request-div #otp-value-error-div{
 	text-align: justify;
 	color: black;
@@ -430,6 +432,7 @@ input{
 }
 
 #add-user-auth-context-update-request-div #identifier-error .error,
+#confirm-bg-consent-request-sca #identifier-error .error,
 #confirm-user-auth-context-update-request-div #otp-value-error .error{
 	background-color: white;
 	font-family: Roboto-Regular,sans-serif;
@@ -437,4 +440,8 @@ input{
 	color: #333333;
 	line-height: 24px;
 	margin-bottom: 15px;
+}
+
+#confirm-vrp-consent-request-deny-submit-button {
+	background: red;
 }

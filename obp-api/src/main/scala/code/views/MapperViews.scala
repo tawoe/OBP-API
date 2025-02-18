@@ -145,7 +145,7 @@ object MapperViews extends Views with MdcLoggable {
         getOrGrantAccessToViewCommon(user, v, bankIdAccountIdViewId.bankId.value, bankIdAccountIdViewId.accountId.value) //accountAccess already exists, no need to create one
       }
       case _ => {
-        Empty ~> APIFailure(s"View $bankIdAccountIdViewId. not found", 404) //TODO: move message + code logic to api level
+        Empty ~> APIFailure(s"View ${bankIdAccountIdViewId.viewId} not found", 404) //TODO: move message + code logic to api level
       }
     }
   }

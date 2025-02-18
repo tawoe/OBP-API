@@ -720,7 +720,7 @@ autocomplete_at_login_form_enabled=false
 # In case isn't defined default value is false
 # allow_gateway_login=false
 # Define secret used to validate JWT token
-# jwt.token_secret=your-at-least-256-bit-secret-token
+# jwt_token_secret=your-at-least-256-bit-secret-token
 # Define comma separated list of allowed IP addresses
 # gateway.host=127.0.0.1
 
@@ -764,14 +764,22 @@ display_internal_errors=false
 # URL of Public server JWK set used for validating bearer JWT access tokens
 # It can contain more than one URL i.e. list of uris. Values are comma separated.
 # oauth2.jwk_set.url=http://localhost:8080/jwk.json,https://www.googleapis.com/oauth2/v3/certs
+# ------------------------------------------------------------------------------ OAuth 2 ------
+
+# -- Keycloak OAuth 2 ---------------------------------------------------------------------------
+# integrate_with_keycloak = false
 # Keycloak Identity Provider Host
 # oauth2.keycloak.host=http://localhost:7070
+# Keycloak access token to make a call to Admin APIs (This props is likely to change)
+# keycloak.admin.access_token =
+# Keycloak Identity Provider Realm (Multi-Tenancy Support)
+# oauth2.keycloak.realm = master
 # oauth2.keycloak.well_known=http://localhost:7070/realms/master/.well-known/openid-configuration
 # Used to sync IAM of OBP-API and IAM of Keycloak
 # oauth2.keycloak.source_of_truth = false
 # Resource access object allowed to sync IAM of OBP-API and IAM of Keycloak
 # oauth2.keycloak.resource_access_key_name_to_trust = open-bank-project
-# ------------------------------------------------------------------------------ OAuth 2 ------
+# ------------------------------------------------------------------------ Keycloak OAuth 2 ------
 
 # -- PSU Authentication methods --------------------------------------------------------------
 # The EBA notes that there would appear to currently be three main ways or methods
@@ -793,6 +801,7 @@ display_internal_errors=false
 # - decoupled
 # In case that "psu_authentication_method = redirection" you must define
 # psu_authentication_method_sca_redirect_url = redirect_url_value
+# psu_make_payment_sca_redirect_url = redirect_url_value
 # -------------------------------------------------------------- Authentication methods --
 
 ## This property is used for documenting at Resource Doc. It may include the port also (but not /obp)
@@ -1349,6 +1358,24 @@ validate_iban=false
 # This returns Regulated Entities
 # sample props regulated_entities = [{"certificate_authority_ca_owner_id":"CY_CBC","entity_certificate_public_key":"-----BEGIN CERTIFICATE-----MIICsjCCAZqgAwIBAgIGAYwQ62R0MA0GCSqGSIb3DQEBCwUAMBoxGDAWBgNVBAMMD2FwcC5leGFtcGxlLmNvbTAeFw0yMzExMjcxMzE1MTFaFw0yNTExMjYxMzE1MTFaMBoxGDAWBgNVBAMMD2FwcC5leGFtcGxlLmNvbTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAK9WIodZHWzKyCcf9YfWEhPURbfO6zKuMqzHN27GdqHsVVEGxP4F/J4mso+0ENcRr6ur4u81iREaVdCc40rHDHVJNEtniD8Icbz7tcsqAewIVhc/q6WXGqImJpCq7hA0m247dDsaZT0lb/MVBiMoJxDEmAE/GYYnWTEn84R35WhJsMvuQ7QmLvNg6RkChY6POCT/YKe9NKwa1NqI1U+oA5RFzAaFtytvZCE3jtp+aR0brL7qaGfgxm6B7dEpGyhg0NcVCV7xMQNq2JxZTVdAr6lcsRGaAFulakmW3aNnmK+L35Wu8uW+OxNxwUuC6f3b4FVBa276FMuUTRfu7gc+k6kCAwEAATANBgkqhkiG9w0BAQsFAAOCAQEAAU5CjEyAoyTn7PgFpQD48ZNPuUsEQ19gzYgJvHMzFIoZ7jKBodjO5mCzWBcR7A4mpeAsdyiNBl2sTiZscSnNqxk61jVzP5Ba1D7XtOjjr7+3iqowrThj6BY40QqhYh/6BSY9fDzVZQiHnvlo6ZUM5kUK6OavZOovKlp5DIl5sGqoP0qAJnpQ4nhB2WVVsKfPlOXc+2KSsbJ23g9l8zaTMr+X0umlvfEKqyEl1Fa2L1dO0y/KFQ+ILmxcZLpRdq1hRAjd0quq9qGC8ucXhRWDgM4hslVpau0da68g0aItWNez3mc5lB82b3dcZpFMzO41bgw7gvw10AvvTfQDqEYIuQ==-----END CERTIFICATE-----","entity_code":"PSD_PICY_CBC!12345","entity_type":"PSD_PI","entity_address":"EXAMPLE COMPANY LTD, 5 SOME STREET","entity_town_city":"SOME CITY","entity_post_code":"1060","entity_country":"CY","entity_web_site":"www.example.com","services":[{"CY":["PS_010","PS_020","PS_03C","PS_04C"]}]}]
 regulated_entities = []
+
+#In OBP Create Consent if the app that is creating the consent (grantor_consumer_id) wants to create a consent for the grantee_consumer_id App, then we should skip SCA.
+#The use case is API Explorer II giving a consent to Opey . In such a case API Explorer II and Opey are effectively the same App as far as the user is concerned.
+
+#skip_consent_sca_for_consumer_id_pairs=[{ \
+#    "grantor_consumer_id": "ef0a8fa4-3814-4a21-8ca9-8c553a43aa631", \
+#    "grantee_consumer_id": "fb327484-94d7-44d2-83e5-8d27301e8279" \
+#}]
+
+# Bootstrap Super User
+# Given the following credentials, OBP will create a user if they do not already exist.
+# This user's password will be valid for a limited time.
+# This user will be granted ONLY the CanCreateEntitlementAtAnyBank permission.
+# This feature can also be used in a "Break Glass" scenario.
+# If you want to use this feature, please set up all three values properly at the same time.
+# super_admin_username=TomWilliams
+# super_admin_inital_password=681aeeb9f681aeeb9f681aeeb9 
+# super_admin_email=tom@tesobe.com
 
 
 # Note: For secure and http only settings for cookies see resources/web.xml which is mentioned in the README.md

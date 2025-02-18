@@ -212,18 +212,24 @@ object Helper extends Loggable {
     */
   def isValidInternalRedirectUrl(url: String) : Boolean = {
     //set the default value is "/" and "/oauth/authorize"
-    val validUrls = List(
+    val internalRedirectUrlsWhiteList = List(
       "/","/oauth/authorize","/consumer-registration",
       "/dummy-user-tokens","/create-sandbox-account",
       "/add-user-auth-context-update-request","/otp",
-      "/terms-and-conditions", "/privacy-policy"
+      "/terms-and-conditions", "/privacy-policy",
+      "/confirm-bg-consent-request",
+      "/confirm-bg-consent-request-sca",
+      "/confirm-vrp-consent-request",
+      "/confirm-vrp-consent",
+      "/consent-screen",
+      "/consent",
     )
 
     //case1: OBP-API login: url = "/"
     //case2: API-Explore oauth login: url = "/oauth/authorize?oauth_token=V0JTCDYXWUNTXDZ3VUDNM1HE3Q1PZR2WJ4PURXQA&logUserOut=false"
     val extractCleanURL = StringUtils.substringBefore(url, "?")
 
-    validUrls.contains(extractCleanURL)
+    internalRedirectUrlsWhiteList.contains(extractCleanURL)
   }
 
    /**
@@ -380,15 +386,21 @@ object Helper extends Loggable {
   }
 
   def i18n(message: String, default: Option[String] = None): String = {
-    if(S.?(message)==message) {
-      val words = message.split('.').toList match {
-        case x :: Nil => Helpers.capify(x) :: Nil
-        case x :: xs  => Helpers.capify(x) :: xs
-        case _        => Nil
-      }
-      default.getOrElse(words.mkString(" ") + ".")
+    if (S.inStatefulScope_?) {
+      if (S.?(message) == message) {
+        val words = message.split('.').toList match {
+          case x :: Nil => Helpers.capify(x) :: Nil
+          case x :: xs => Helpers.capify(x) :: xs
+          case _ => Nil
+        }
+        default.getOrElse(words.mkString(" ") + ".")
+      } else 
+        S.?(message)
+    } else {
+      logger.error(s"i18n(message($message), default${default}: Attempted to use resource bundles outside of an initialized S scope. " +
+        s"S only usable when initialized, such as during request processing. Did you call S.? from Future?")
+      default.getOrElse(message)
     }
-    else S.?(message)
   }
 
   /**

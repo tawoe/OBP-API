@@ -2455,10 +2455,10 @@ object Glossary extends MdcLoggable  {
 |# Define comma separated list of allowed IP addresses
 |# gateway.host=127.0.0.1
 |# Define secret used to validate JWT token
-|# jwt.token_secret=your-at-least-256-bit-secret-token
+|# jwt_token_secret=your-at-least-256-bit-secret-token
 |# -------------------------------------- Gateway login --
 |```
-|Please keep in mind that property jwt.token_secret is used to validate JWT token to check it is not changed or corrupted during transport.
+|Please keep in mind that property jwt_token_secret is used to validate JWT token to check it is not changed or corrupted during transport.
 |
 |### 2) Create / have access to a JWT
 |

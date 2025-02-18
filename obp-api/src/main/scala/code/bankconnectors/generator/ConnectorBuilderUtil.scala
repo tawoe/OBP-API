@@ -2,7 +2,7 @@ package code.bankconnectors.generator
 
 import code.api.util.CodeGenerateUtils.createDocExample
 import code.api.util.{APIUtil, CallContext}
-import code.bankconnectors.Connector
+import code.bankconnectors.{Connector, LocalMappedConnector}
 import code.bankconnectors.vSept2018.KafkaMappedConnector_vSept2018
 import com.openbankproject.commons.util.ReflectUtils
 import org.apache.commons.io.FileUtils
@@ -21,7 +21,7 @@ import scala.reflect.runtime.{universe => ru}
  */
 object ConnectorBuilderUtil {
   
-  def getClassesFromPackage(packageName: String): Seq[Class[_]] = {
+  def getClassesFromPackage(packageName: String): List[Class[_]] = {
     val classLoader = Thread.currentThread().getContextClassLoader
     val path = packageName.replace('.', '/')
     val resources: Seq[URL] = classLoader.getResources(path).asScala.toSeq
@@ -36,7 +36,7 @@ object ConnectorBuilderUtil {
       } else {
         Seq.empty
       }
-    }
+    }.toList
   }
   
   
@@ -273,165 +273,170 @@ object ConnectorBuilderUtil {
     }
   }
 
-  val commonMethodNames = List(
-    "getAdapterInfo",
-    "getChallengeThreshold",
-    "getChargeLevel",
-    "getChargeLevelC2",
-    "createChallenge",
-    "getBank",
-    "getBanks",
-    "getBankAccountsForUser",
-    "getBankAccountsBalances",
-    "getBankAccountBalances",
-    "getCoreBankAccounts",
-    "getBankAccountsHeld",
-    "getCounterpartyTrait",
-    "getCounterpartyByCounterpartyId",
-    "getCounterpartyByIban",
-    "getCounterparties",
-    "getTransactions",
-    "getTransactionsCore",
-    "getTransaction",
-    "getPhysicalCardForBank",
-    "deletePhysicalCardForBank",
-    "getPhysicalCardsForBank",
-    "createPhysicalCard",
-    "updatePhysicalCard",
-    "makePaymentv210",
-    "makePaymentV400",
-    "cancelPaymentV400",
-    "createTransactionRequestv210",
-    "getTransactionRequests210",
-    "getTransactionRequestImpl",
-    "createTransactionAfterChallengeV210",
-    "updateBankAccount",
-    "createBankAccount",
-    "getBranch",
-    "getBranches",
-    "getAtm",
-    "getAtms",
-    "createTransactionAfterChallengev300",
-    "makePaymentv300",
-    "createTransactionRequestv300",
-    "createCounterparty",
-    "checkCustomerNumberAvailable",
-    "createCustomer",
-    "updateCustomerScaData",
-    "updateCustomerCreditData",
-    "updateCustomerGeneralData",
-    "getCustomersByUserId",
-    "getCustomerByCustomerId",
-    "getCustomerByCustomerNumber",
-    "getCustomerAddress",
-    "createCustomerAddress",
-    "updateCustomerAddress",
-    "deleteCustomerAddress",
-    "createTaxResidence",
-    "getTaxResidence",
-    "deleteTaxResidence",
-    "getCustomers",
-    "getCheckbookOrders",
-    "getStatusOfCreditCardOrder",
-    "createUserAuthContext",
-    "createUserAuthContextUpdate",
-    "deleteUserAuthContexts",
-    "deleteUserAuthContextById",
-    "getUserAuthContexts",
-    "createOrUpdateProductAttribute",
-    "getProduct",
-    "getProducts",
-    "getProductAttributeById",
-    "getProductAttributesByBankAndCode",
-    "deleteProductAttribute",
-    "getAccountAttributeById",
-    "createOrUpdateAccountAttribute",
-    "createAccountAttributes",
-    "getAccountAttributesByAccount",
-    "createOrUpdateCardAttribute",
-    "getCardAttributeById",
-    "getCardAttributesFromProvider",
-    "createAccountApplication",
-    "getAllAccountApplication",
-    "getAccountApplicationById",
-    "updateAccountApplicationStatus",
-    "getOrCreateProductCollection",
-    "getProductCollection",
-    "getOrCreateProductCollectionItem",
-    "getProductCollectionItem",
-    "getProductCollectionItemsTree",
-    "createMeeting",
-    "getMeetings",
-    "getMeeting",
-    "createOrUpdateKycCheck",
-    "createOrUpdateKycDocument",
-    "createOrUpdateKycMedia",
-    "createOrUpdateKycStatus",
-    "getKycChecks",
-    "getKycDocuments",
-    "getKycMedias",
-    "getKycStatuses",
-    "createMessage",
-    "makeHistoricalPayment",
-    "validateChallengeAnswer",
-    //"getBankLegacy", // should not generate for Legacy methods
-    //"getBanksLegacy", // should not generate for Legacy methods
-    //"getBankAccountsForUserLegacy", // should not generate for Legacy methods
-    //"getBankAccountLegacy", // should not generate for Legacy methods
-    "getBankAccountByIban",
-    "getBankAccountByRouting",
-    "getBankAccounts",
-    "checkBankAccountExists",
-    //"getCoreBankAccountsLegacy", // should not generate for Legacy methods
-    //"getBankAccountsHeldLegacy", // should not generate for Legacy methods
-    //"checkBankAccountExistsLegacy", // should not generate for Legacy methods
-    //"getCounterpartyByCounterpartyIdLegacy", // should not generate for Legacy methods
-    //"getCounterpartiesLegacy", // should not generate for Legacy methods
-    //"getTransactionsLegacy", // should not generate for Legacy methods
-    //"getTransactionLegacy", // should not generate for Legacy methods
-    //"createPhysicalCardLegacy", // should not generate for Legacy methods
-    //"getCustomerByCustomerIdLegacy", // should not generate for Legacy methods
+  //TODO WIP, need to fix the code to support the following methods
+//  val commonMethodNames = LocalMappedConnector.callableMethods.keySet.toList
 
-    "createChallenges",
-    "createTransactionRequestv400",
-    "createTransactionRequestSepaCreditTransfersBGV1",
-    "createTransactionRequestPeriodicSepaCreditTransfersBGV1",
-    "getCustomersByCustomerPhoneNumber",
-    "getTransactionAttributeById",
-    "createOrUpdateCustomerAttribute",
-    "createOrUpdateTransactionAttribute",
-    "getCustomerAttributes",
-    "getCustomerIdsByAttributeNameValues",
-    "getCustomerAttributesForCustomers",
-    "getTransactionIdsByAttributeNameValues",
-    "getTransactionAttributes",
-    "getBankAttributesByBank",
-    "getCustomerAttributeById",
-    "createDirectDebit",
-    "deleteCustomerAttribute",
-    "getPhysicalCardsForUser",
-    "getChallengesByBasketId",
-    "createChallengesC2",
-    "createChallengesC3",
-    "getChallenge",
-    "getChallengesByTransactionRequestId",
-    "getChallengesByConsentId",
-    "validateAndCheckIbanNumber",
-    "validateChallengeAnswerC2",
-    "validateChallengeAnswerC3",
-    "validateChallengeAnswerC4",
-    "validateChallengeAnswerC5",
-    "validateChallengeAnswerV2",
-    "getCounterpartyByIbanAndBankAccountId",
-    "getChargeValue",
-    "saveTransactionRequestTransaction",
-    "saveTransactionRequestChallenge",
-    "getTransactionRequestTypes",
-    "updateAccountLabel",
-    "getProduct",
-    "saveTransactionRequestStatusImpl",
-    "getTransactionRequestTypeCharges"
-  ).distinct
+    val commonMethodNames = List(
+      "getAdapterInfo",
+      "getChallengeThreshold",
+      "getChargeLevel",
+      "getChargeLevelC2",
+      "createChallenge",
+      "getBank",
+      "getBanks",
+      "getBankAccountsForUser",
+      "getBankAccountsBalances",
+      "getBankAccountBalances",
+      "getCoreBankAccounts",
+      "getBankAccountsHeld",
+      "getCounterpartyTrait",
+      "getCounterpartyByCounterpartyId",
+      "getCounterpartyByIban",
+      "getCounterparties",
+      "getTransactions",
+      "getTransactionsCore",
+      "getTransaction",
+      "getPhysicalCardForBank",
+      "deletePhysicalCardForBank",
+      "getPhysicalCardsForBank",
+      "createPhysicalCard",
+      "updatePhysicalCard",
+      "makePaymentv210",
+      "makePaymentV400",
+      "cancelPaymentV400",
+      "createTransactionRequestv210",
+      "getTransactionRequests210",
+      "getTransactionRequestImpl",
+      "createTransactionAfterChallengeV210",
+      "updateBankAccount",
+      "createBankAccount",
+      "getBranch",
+      "getBranches",
+      "getAtm",
+      "getAtms",
+      "createTransactionAfterChallengev300",
+      "makePaymentv300",
+      "createTransactionRequestv300",
+      "createCounterparty",
+      "checkCustomerNumberAvailable",
+      "createCustomer",
+      "updateCustomerScaData",
+      "updateCustomerCreditData",
+      "updateCustomerGeneralData",
+      "getCustomersByUserId",
+      "getCustomerByCustomerId",
+      "getCustomerByCustomerNumber",
+      "getCustomerAddress",
+      "createCustomerAddress",
+      "updateCustomerAddress",
+      "deleteCustomerAddress",
+      "createTaxResidence",
+      "getTaxResidence",
+      "deleteTaxResidence",
+      "getCustomers",
+      "getCheckbookOrders",
+      "getStatusOfCreditCardOrder",
+      "createUserAuthContext",
+      "createUserAuthContextUpdate",
+      "deleteUserAuthContexts",
+      "deleteUserAuthContextById",
+      "getUserAuthContexts",
+      "createOrUpdateProductAttribute",
+      "getProduct",
+      "getProducts",
+      "getProductAttributeById",
+      "getProductAttributesByBankAndCode",
+      "deleteProductAttribute",
+      "getAccountAttributeById",
+      "createOrUpdateAccountAttribute",
+      "createAccountAttributes",
+      "getAccountAttributesByAccount",
+      "createOrUpdateCardAttribute",
+      "getCardAttributeById",
+      "getCardAttributesFromProvider",
+      "createAccountApplication",
+      "getAllAccountApplication",
+      "getAccountApplicationById",
+      "updateAccountApplicationStatus",
+      "getOrCreateProductCollection",
+      "getProductCollection",
+      "getOrCreateProductCollectionItem",
+      "getProductCollectionItem",
+      "getProductCollectionItemsTree",
+      "createMeeting",
+      "getMeetings",
+      "getMeeting",
+      "createOrUpdateKycCheck",
+      "createOrUpdateKycDocument",
+      "createOrUpdateKycMedia",
+      "createOrUpdateKycStatus",
+      "getKycChecks",
+      "getKycDocuments",
+      "getKycMedias",
+      "getKycStatuses",
+      "createMessage",
+      "makeHistoricalPayment",
+      "validateChallengeAnswer",
+      //"getBankLegacy", // should not generate for Legacy methods
+      //"getBanksLegacy", // should not generate for Legacy methods
+      //"getBankAccountsForUserLegacy", // should not generate for Legacy methods
+      //"getBankAccountLegacy", // should not generate for Legacy methods
+      "getBankAccountByIban",
+      "getBankAccountByRouting",
+      "getBankAccounts",
+      "checkBankAccountExists",
+      //"getCoreBankAccountsLegacy", // should not generate for Legacy methods
+      //"getBankAccountsHeldLegacy", // should not generate for Legacy methods
+      //"checkBankAccountExistsLegacy", // should not generate for Legacy methods
+      //"getCounterpartyByCounterpartyIdLegacy", // should not generate for Legacy methods
+      //"getCounterpartiesLegacy", // should not generate for Legacy methods
+      //"getTransactionsLegacy", // should not generate for Legacy methods
+      //"getTransactionLegacy", // should not generate for Legacy methods
+      //"createPhysicalCardLegacy", // should not generate for Legacy methods
+      //"getCustomerByCustomerIdLegacy", // should not generate for Legacy methods
+
+      "createChallenges",
+      "createTransactionRequestv400",
+      "createTransactionRequestSepaCreditTransfersBGV1",
+      "createTransactionRequestPeriodicSepaCreditTransfersBGV1",
+      "getCustomersByCustomerPhoneNumber",
+      "getTransactionAttributeById",
+      "createOrUpdateCustomerAttribute",
+      "createOrUpdateTransactionAttribute",
+      "getCustomerAttributes",
+      "getCustomerIdsByAttributeNameValues",
+      "getCustomerAttributesForCustomers",
+      "getTransactionIdsByAttributeNameValues",
+      "getTransactionAttributes",
+      "getBankAttributesByBank",
+      "getCustomerAttributeById",
+      "createDirectDebit",
+      "deleteCustomerAttribute",
+      "getPhysicalCardsForUser",
+      "getChallengesByBasketId",
+      "createChallengesC2",
+      "createChallengesC3",
+      "getChallenge",
+      "getChallengesByTransactionRequestId",
+      "getChallengesByConsentId",
+      "validateAndCheckIbanNumber",
+      "validateChallengeAnswerC2",
+      "validateChallengeAnswerC3",
+      "validateChallengeAnswerC4",
+      "validateChallengeAnswerC5",
+      "validateChallengeAnswerV2",
+      "getCounterpartyByIbanAndBankAccountId",
+      "getChargeValue",
+      "saveTransactionRequestTransaction",
+      "saveTransactionRequestChallenge",
+      "getTransactionRequestTypes",
+      "updateAccountLabel",
+      "getProduct",
+      "saveTransactionRequestStatusImpl",
+      "getTransactionRequestTypeCharges",
+      "getAccountsHeld",
+      "getAccountsHeldByUser",
+    ).distinct
 
   /**
    * these connector methods have special parameter or return type
@@ -449,20 +454,51 @@ object ConnectorBuilderUtil {
   ).distinct
 
   val omitMethods = List(
-    // "createOrUpdateAttributeDefinition", // should not be auto generated
-    // "deleteAttributeDefinition", // should not be auto generated
-    // "getAttributeDefinition", // should not be auto generated
-    // "createStandingOrder", // should not be auto generated
-
+    "createOrUpdateAttributeDefinition", // should not be auto generated
+    "deleteAttributeDefinition", // should not be auto generated
+    "getAttributeDefinition", // should not be auto generated
+    "createStandingOrder", // should not be auto generated
     //** the follow 5 methods should not be generated, should create manually
-    //      "dynamicEntityProcess",
-    //      "dynamicEndpointProcess",
-    //      "createDynamicEndpoint",
-    //      "getDynamicEndpoint",
-    //      "getDynamicEndpoints",
-    
-    //    "checkExternalUserCredentials",// this is not a standard connector method.
-    //    "checkExternalUserExists", // this is not a standard connector method. 
+    "dynamicEntityProcess",
+    "dynamicEndpointProcess",
+    "createDynamicEndpoint",
+    "getDynamicEndpoint",
+    "getDynamicEndpoints",
+    "checkExternalUserCredentials",// this is not a standard connector method.
+    "checkExternalUserExists", // this is not a standard connector method. 
+    "getBankAccountByRoutingLegacy",
+    "getAccountRoutingsByScheme",
+    "getAccountRouting",
+    "getBankAccountsWithAttributes",
+    "getBankSettlementAccounts",
+    "getCountOfTransactionsFromAccountToCounterparty",
+    "getStatus",
+    "createOrUpdateBank",
+    "createOrUpdateProduct",
+    "getAllAtms",
+    "getCurrentCurrencies",
+    "getAgents",
+    "getCustomersAtAllBanks",
+    "createOrUpdateBankAttribute",
+    "getBankAttribute",
+    "createOrUpdateAtmAttribute",
+    "getAtmAttribute",
+    "getBankAttributeById",
+    "getAtmAttributeById",
+    "getUserAttributes",
+    "getPersonalUserAttributes",
+    "getNonPersonalUserAttributes",
+    "getUserAttributesByUsers",
+    "createOrUpdateUserAttribute",
+    "getUserAttribute",
+    "getUserAttributeById",
+    "deleteUserAttribute",
+    "getTransactionRequestIdsByAttributeNameValues",
+    "sendCustomerNotification",
+    "equals",
+    "getAtmAttributesByAtm",
+    "==",
+    "!=",
   ).distinct
 }
 

@@ -7,7 +7,7 @@ import scala.language.postfixOps
 
 object RabbitMQConnectorBuilder extends App {
 
-  buildMethods(commonMethodNames,
+  buildMethods(commonMethodNames.diff(omitMethods),
     "src/main/scala/code/bankconnectors/rabbitmq/RabbitMQConnector_vOct2024.scala",
      methodName => s"""sendRequest[InBound]("obp_${StringHelpers.snakify(methodName)}", req, callContext)""")
 }

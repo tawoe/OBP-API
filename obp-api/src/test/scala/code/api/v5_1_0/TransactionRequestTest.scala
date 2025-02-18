@@ -28,11 +28,13 @@ package code.api.v5_1_0
 import code.api.Constant
 import code.api.util.ErrorMessages._
 import code.api.util.APIUtil.OAuth._
+import code.api.util.ApiRole.{CanGetTransactionRequestAtAnyBank, CanUpdateTransactionRequestStatusAtAnyBank}
 import code.api.v2_1_0.{CounterpartyIdJson, TransactionRequestBodyCounterpartyJSON, TransactionRequestWithChargeJSONs210}
 import code.api.v4_0_0.OBPAPI4_0_0.Implementations4_0_0
 import code.api.v5_1_0.OBPAPI5_1_0.Implementations5_1_0
 import com.github.dwickern.macros.NameOf.nameOf
-import com.openbankproject.commons.model.{AmountOfMoneyJsonV121, ErrorMessage,TransactionRequestAttributeJsonV400}
+import com.openbankproject.commons.model.enums.TransactionRequestStatus
+import com.openbankproject.commons.model.{AmountOfMoneyJsonV121, ErrorMessage, TransactionRequestAttributeJsonV400}
 import com.openbankproject.commons.util.ApiVersion
 import net.liftweb.json.Serialization.write
 import org.scalatest.Tag
@@ -49,12 +51,14 @@ class TransactionRequestTest extends V510ServerSetup {
     *  This is made possible by the scalatest maven plugin
     */
   object VersionOfApi extends Tag(ApiVersion.v5_1_0.toString)
-  object ApiEndpoint1 extends Tag(nameOf(Implementations5_1_0.getTransactionRequests))
-  object ApiEndpoint2 extends Tag(nameOf(Implementations4_0_0.createTransactionRequestCounterparty))
+  object GetTransactionRequests extends Tag(nameOf(Implementations5_1_0.getTransactionRequests))
+  object CreateTransactionRequestCounterparty extends Tag(nameOf(Implementations4_0_0.createTransactionRequestCounterparty))
+  object GetTransactionRequestById extends Tag(nameOf(Implementations5_1_0.getTransactionRequestById))
+  object UpdateTransactionRequestStatus extends Tag(nameOf(Implementations5_1_0.updateTransactionRequestStatus))
 
   feature("Get Transaction Requests - v5.1.0")
   {
-    scenario("We will Get Transaction Requests - user is NOT logged in", ApiEndpoint1, VersionOfApi) {
+    scenario("We will Get Transaction Requests - user is NOT logged in", GetTransactionRequests, VersionOfApi) {
       When("We make a request v5.1.0")
       val request510 = (v5_1_0_Request / "banks" / testBankId1.value  / "accounts" / testAccountId0.value / Constant.SYSTEM_OWNER_VIEW_ID / "transaction-requests").GET
       val response510 = makeGetRequest(request510)
@@ -63,7 +67,7 @@ class TransactionRequestTest extends V510ServerSetup {
       And("error should be " + UserNotLoggedIn)
       response510.body.extract[ErrorMessage].message should equal (UserNotLoggedIn)
     }
-    scenario("We will Get Transaction Requests - user is logged in", ApiEndpoint1, VersionOfApi) {
+    scenario("We will Get Transaction Requests - user is logged in", GetTransactionRequests, VersionOfApi) {
       When("We make a request v5.1.0")
       val request510 = (v5_1_0_Request / "banks" / testBankId1.value  / "accounts" / testAccountId0.value / Constant.SYSTEM_OWNER_VIEW_ID / "transaction-requests").GET <@(user1)
       val response510 = makeGetRequest(request510)
@@ -71,7 +75,7 @@ class TransactionRequestTest extends V510ServerSetup {
       response510.code should equal(200)
       response510.body.extract[TransactionRequestsJsonV510]
     }
-    scenario("We will try to Get Transaction Requests for someone else account - user is logged in", ApiEndpoint1, VersionOfApi) {
+    scenario("We will try to Get Transaction Requests for someone else account - user is logged in", GetTransactionRequests, VersionOfApi) {
       When("We make a request v5.1.0")
       val request510 = (
         v5_1_0_Request / "banks" / testBankId1.value  / "accounts" / testAccountId0.value / Constant.SYSTEM_OWNER_VIEW_ID / "transaction-requests").GET <@ (user2)
@@ -81,8 +85,8 @@ class TransactionRequestTest extends V510ServerSetup {
       And("error should be " + UserNoPermissionAccessView)
       response510.body.extract[ErrorMessage].message contains (UserNoPermissionAccessView) shouldBe (true)
     }
-    
-    scenario("We will try to Get Transaction Requests with Attributes", ApiEndpoint1, ApiEndpoint2, VersionOfApi) {
+
+    scenario("We will try to Get Transaction Requests with Attributes", GetTransactionRequests, CreateTransactionRequestCounterparty, VersionOfApi) {
       val bankId = testBankId1.value
       val accountId = testAccountId1.value
       val ownerView = Constant.SYSTEM_OWNER_VIEW_ID
@@ -163,6 +167,52 @@ class TransactionRequestTest extends V510ServerSetup {
         response510.body.extract[TransactionRequestsJsonV510].transaction_requests.length == 0 shouldBe (true)
       }
       
+    }
+  }
+
+  feature(s"$GetTransactionRequestById - $VersionOfApi") {
+    scenario(s"We will $GetTransactionRequestById - user is NOT logged in", GetTransactionRequestById, VersionOfApi) {
+      When("We make a request v5.1.0")
+      val request510 = (v5_1_0_Request / "management" / "transaction-requests" / "TRANSACTION_REQUEST_ID").GET
+      val response510 = makeGetRequest(request510)
+      Then("We should get a 401")
+      response510.code should equal(401)
+      And("error should be " + UserNotLoggedIn)
+      response510.body.extract[ErrorMessage].message should equal(UserNotLoggedIn)
+    }
+    scenario(s"We will $GetTransactionRequestById - user is logged in", GetTransactionRequestById, VersionOfApi) {
+      When("We make a request v5.1.0")
+      val request510 = (v5_1_0_Request / "management" / "transaction-requests" / "TRANSACTION_REQUEST_ID").GET <@(user1)
+      val response510 = makeGetRequest(request510)
+      Then("We should get a 401")
+      Then("error should be " + UserHasMissingRoles + CanGetTransactionRequestAtAnyBank)
+      response510.code should equal(403)
+      response510.body.extract[ErrorMessage].message should be(UserHasMissingRoles + CanGetTransactionRequestAtAnyBank)
+    }
+  }
+
+
+
+  feature(s"$UpdateTransactionRequestStatus - $VersionOfApi") {
+    scenario(s"We will $UpdateTransactionRequestStatus - user is NOT logged in", UpdateTransactionRequestStatus, VersionOfApi) {
+      When("We make a request v5.1.0")
+      val request510 = (v5_1_0_Request / "management" / "transaction-requests" / "TRANSACTION_REQUEST_ID").PUT
+      val putJson = PostTransactionRequestStatusJsonV510(TransactionRequestStatus.COMPLETED.toString)
+      val response510 = makePutRequest(request510, write(putJson))
+      Then("We should get a 401")
+      response510.code should equal(401)
+      And("error should be " + UserNotLoggedIn)
+      response510.body.extract[ErrorMessage].message should equal(UserNotLoggedIn)
+    }
+    scenario(s"We will $UpdateTransactionRequestStatus - user is logged in", UpdateTransactionRequestStatus, VersionOfApi) {
+      When("We make a request v5.1.0")
+      val request510 = (v5_1_0_Request / "management" / "transaction-requests" / "TRANSACTION_REQUEST_ID").PUT <@(user1)
+      val putJson = PostTransactionRequestStatusJsonV510(TransactionRequestStatus.COMPLETED.toString)
+      val response510 = makePutRequest(request510, write(putJson))
+      Then("We should get a 401")
+      Then("error should be " + UserHasMissingRoles + CanUpdateTransactionRequestStatusAtAnyBank)
+      response510.code should equal(403)
+      response510.body.extract[ErrorMessage].message should be(UserHasMissingRoles + CanUpdateTransactionRequestStatusAtAnyBank)
     }
   }
 

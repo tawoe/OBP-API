@@ -504,7 +504,7 @@ There are the following request types on this access path:
                        })
                      }
                      SigningBasketX.signingBasketProvider.vend.saveSigningBasketStatus(basketId, ConstantsBG.SigningBasketsStatus.ACTC.toString)
-                     unboxFullOrFail(boxedChallenge, callContext, s"$InvalidConnectorResponse ")
+                     unboxFullOrFail(boxedChallenge, callContext, s"$InvalidConnectorResponse validateChallengeAnswerC5")
                    } else { // Fail due to unexisting payment
                      val paymentIds = basket.flatMap(_.payments).getOrElse(Nil).mkString(",")
                      unboxFullOrFail(Empty, callContext, s"$InvalidConnectorResponse Some of paymentIds [${paymentIds}] are invalid")
@@ -520,10 +520,10 @@ There are the following request types on this access path:
                      })
                    }
                    // Fail in case of an error message
-                   unboxFullOrFail(boxedChallenge, callContext, s"$InvalidConnectorResponse ")
+                   unboxFullOrFail(boxedChallenge, callContext, s"$InvalidConnectorResponse validateChallengeAnswerC5")
                  }
                case _ => // Fail in case of an error message
-                 Future(unboxFullOrFail(Empty, callContext, s"$InvalidConnectorResponse "))
+                 Future(unboxFullOrFail(Empty, callContext, s"$InvalidConnectorResponse getChallenge"))
              }
            } yield {
              (JSONFactory_BERLIN_GROUP_1_3.createStartPaymentAuthorisationJson(challenge), callContext)

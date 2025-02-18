@@ -28,7 +28,7 @@ import code.api.v3_0_0.JSONFactory300.createAdapterInfoJson
 import code.api.v3_1_0.JSONFactory310._
 import code.bankconnectors.rest.RestConnector_vMar2019
 import code.bankconnectors.{Connector, LocalMappedConnector}
-import code.consent.{ConsentRequests, ConsentStatus, Consents}
+import code.consent.{ConsentRequests, ConsentStatus, Consents, MappedConsent}
 import code.consumer.Consumers
 import code.context.UserAuthContextUpdateProvider
 import code.entitlement.Entitlement
@@ -57,6 +57,7 @@ import net.liftweb.http.provider.HTTPParam
 import net.liftweb.http.rest.RestHelper
 import net.liftweb.json._
 import net.liftweb.util.Helpers.tryo
+import net.liftweb.mapper.By
 import net.liftweb.util.Mailer.{From, PlainMailBodyType, Subject, To}
 import net.liftweb.util.{Helpers, Mailer, Props, StringHelpers}
 import org.apache.commons.lang3.{StringUtils, Validate}
@@ -3586,66 +3587,82 @@ trait APIMethods310 {
             _ <- Future(Consents.consentProvider.vend.setJsonWebToken(createdConsent.consentId, consentJWT)) map {
               i => connectorEmptyResponse(i, callContext)
             }
-            challengeText = s"Your consent challenge : ${challengeAnswer}, Application: $applicationText"
-            _ <- scaMethod match {
-            case v if v == StrongCustomerAuthentication.EMAIL.toString => // Send the email
-              for{
-                failMsg <- Future {s"$InvalidJsonFormat The Json body should be the $PostConsentEmailJsonV310"}
-                postConsentEmailJson <- NewStyle.function.tryons(failMsg, 400, callContext) {
-                  json.extract[PostConsentEmailJsonV310]
-                }
-                (status, callContext) <- NewStyle.function.sendCustomerNotification(
-                  StrongCustomerAuthentication.EMAIL, 
-                  postConsentEmailJson.email, 
-                  Some("OBP Consent Challenge"),
-                  challengeText, 
-                  callContext
-                )
-              } yield Future{status}
-            case v if v == StrongCustomerAuthentication.SMS.toString =>
-              for {
-                failMsg <- Future {
-                  s"$InvalidJsonFormat The Json body should be the $PostConsentPhoneJsonV310"
-                }
-                postConsentPhoneJson <- NewStyle.function.tryons(failMsg, 400, callContext) {
-                  json.extract[PostConsentPhoneJsonV310]
-                }
-                phoneNumber = postConsentPhoneJson.phone_number
-                (status, callContext) <- NewStyle.function.sendCustomerNotification(
-                  StrongCustomerAuthentication.SMS, 
-                  phoneNumber, 
-                  None,
-                  challengeText, 
-                  callContext
-                )
-              } yield Future{status}
-            case v if v == StrongCustomerAuthentication.IMPLICIT.toString =>
-              for {
-                (consentImplicitSCA, callContext) <- NewStyle.function.getConsentImplicitSCA(user, callContext)
-                status <- consentImplicitSCA.scaMethod match {
-                  case v if v == StrongCustomerAuthentication.EMAIL => // Send the email
-                    NewStyle.function.sendCustomerNotification (
-                      StrongCustomerAuthentication.EMAIL,
-                      consentImplicitSCA.recipient,
-                      Some ("OBP Consent Challenge"),
-                      challengeText,
-                      callContext
-                    )
-                  case v if v == StrongCustomerAuthentication.SMS =>
-                    NewStyle.function.sendCustomerNotification(
-                      StrongCustomerAuthentication.SMS,
-                      consentImplicitSCA.recipient,
-                      None,
-                      challengeText,
-                      callContext
-                    )
-                  case _ => Future {
-                    "Success"
-                  }
-                }} yield {
-                status
+            //we need to check `skip_consent_sca_for_consumer_id_pairs` props, to see if we really need the SCA flow. 
+            //this is from callContext
+            grantorConsumerId = callContext.map(_.consumer.toOption.map(_.consumerId.get)).flatten.getOrElse("Unknown")
+            //this is from json body
+            granteeConsumerId = consentJson.consumer_id.getOrElse("Unknown")
+
+            shouldSkipConsentScaForConsumerIdPair = APIUtil.skipConsentScaForConsumerIdPairs.contains(
+              APIUtil.ConsumerIdPair(
+                grantorConsumerId,
+                granteeConsumerId
+              ))
+            mappedConsent <- if (shouldSkipConsentScaForConsumerIdPair) {
+              Future{
+                MappedConsent.find(By(MappedConsent.mConsentId, createdConsent.consentId)).map(_.mStatus(ConsentStatus.ACCEPTED.toString).saveMe()).head
               }
-            case _ =>Future{"Success"}
+            }  else {
+              val challengeText = s"Your consent challenge : ${challengeAnswer}, Application: $applicationText"
+              scaMethod match {
+                case v if v == StrongCustomerAuthentication.EMAIL.toString => // Send the email
+                  for{
+                    failMsg <- Future {s"$InvalidJsonFormat The Json body should be the $PostConsentEmailJsonV310"}
+                    postConsentEmailJson <- NewStyle.function.tryons(failMsg, 400, callContext) {
+                      json.extract[PostConsentEmailJsonV310]
+                    }
+                    (status, callContext) <- NewStyle.function.sendCustomerNotification(
+                      StrongCustomerAuthentication.EMAIL, 
+                      postConsentEmailJson.email, 
+                      Some("OBP Consent Challenge"),
+                      challengeText, 
+                      callContext
+                    )
+                  } yield createdConsent
+                case v if v == StrongCustomerAuthentication.SMS.toString =>
+                  for {
+                    failMsg <- Future {
+                      s"$InvalidJsonFormat The Json body should be the $PostConsentPhoneJsonV310"
+                    }
+                    postConsentPhoneJson <- NewStyle.function.tryons(failMsg, 400, callContext) {
+                      json.extract[PostConsentPhoneJsonV310]
+                    }
+                    phoneNumber = postConsentPhoneJson.phone_number
+                    (status, callContext) <- NewStyle.function.sendCustomerNotification(
+                      StrongCustomerAuthentication.SMS, 
+                      phoneNumber, 
+                      None,
+                      challengeText, 
+                      callContext
+                    )
+                  } yield createdConsent
+                case v if v == StrongCustomerAuthentication.IMPLICIT.toString =>
+                  for {
+                    (consentImplicitSCA, callContext) <- NewStyle.function.getConsentImplicitSCA(user, callContext)
+                    status <- consentImplicitSCA.scaMethod match {
+                      case v if v == StrongCustomerAuthentication.EMAIL => // Send the email
+                        NewStyle.function.sendCustomerNotification (
+                          StrongCustomerAuthentication.EMAIL,
+                          consentImplicitSCA.recipient,
+                          Some ("OBP Consent Challenge"),
+                          challengeText,
+                          callContext
+                        )
+                      case v if v == StrongCustomerAuthentication.SMS =>
+                        NewStyle.function.sendCustomerNotification(
+                          StrongCustomerAuthentication.SMS,
+                          consentImplicitSCA.recipient,
+                          None,
+                          challengeText,
+                          callContext
+                        )
+                      case _ => Future {
+                        "Success"
+                      }
+                    }} yield {
+                    createdConsent
+                  }
+                case _ =>Future{createdConsent}}
             }
           } yield {
             (ConsentJsonV310(createdConsent.consentId, consentJWT, createdConsent.status), HttpCode.`201`(callContext))

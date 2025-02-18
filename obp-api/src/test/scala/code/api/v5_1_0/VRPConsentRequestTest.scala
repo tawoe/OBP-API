@@ -199,7 +199,7 @@ class VRPConsentRequestTest extends V510ServerSetup with PropsReset{
       val getConsentByRequestResponse = makeGetRequest(getConsentByRequestIdUrl(consentRequestId))
       Then("We should get a 200")
       getConsentByRequestResponse.code should equal(200)
-      val getConsentByRequestResponseJson = getConsentByRequestResponse.body.extract[ConsentJsonV510]
+      val getConsentByRequestResponseJson = getConsentByRequestResponse.body.extract[ConsentJsonV500]
       getConsentByRequestResponseJson.consent_request_id.head should be(consentRequestId)
       getConsentByRequestResponseJson.status should be(ConsentStatus.ACCEPTED.toString)
 
@@ -280,7 +280,7 @@ class VRPConsentRequestTest extends V510ServerSetup with PropsReset{
       val getConsentByRequestResponse = makeGetRequest(getConsentByRequestIdUrl(consentRequestId))
       Then("We should get a 200")
       getConsentByRequestResponse.code should equal(200)
-      val getConsentByRequestResponseJson = getConsentByRequestResponse.body.extract[ConsentJsonV510]
+      val getConsentByRequestResponseJson = getConsentByRequestResponse.body.extract[ConsentJsonV500]
       getConsentByRequestResponseJson.consent_request_id.head should be(consentRequestId)
       getConsentByRequestResponseJson.status should be(ConsentStatus.ACCEPTED.toString)
     }

@@ -77,7 +77,7 @@ class ServerCallback(val ch: Channel) extends DeliverCallback with MdcLoggable{
           ))
         }
 //---------------- dynamic start -------------------please don't modify this line
-// ---------- created on 2024-10-28T12:26:57Z
+// ---------- created on 2025-01-14T11:53:01Z
 
       } else if (obpMessageId.contains("get_adapter_info")) {
         val outBound = json.parse(message).extract[OutBoundGetAdapterInfo]
@@ -694,6 +694,48 @@ class ServerCallback(val ch: Channel) extends DeliverCallback with MdcLoggable{
             data = null
           ))
         }
+      } else if (obpMessageId.contains("get_accounts_held")) {
+        val outBound = json.parse(message).extract[OutBoundGetAccountsHeld]
+        val obpMappedResponse = code.bankconnectors.LocalMappedConnector.getAccountsHeld(outBound.bankId,outBound.user,None).map(_._1.head)
+        
+        obpMappedResponse.map(response => InBoundGetAccountsHeld(          
+          
+          inboundAdapterCallContext = InboundAdapterCallContext(
+            correlationId = outBound.outboundAdapterCallContext.correlationId
+          ),
+          status = Status("", Nil),
+          data = response
+        )).recoverWith {
+          case e: Exception => Future(InBoundGetAccountsHeld(          
+          
+          inboundAdapterCallContext = InboundAdapterCallContext(
+            correlationId = outBound.outboundAdapterCallContext.correlationId
+          ),
+            status = Status(e.getMessage, Nil),
+            data = null
+          ))
+        }
+      } else if (obpMessageId.contains("get_accounts_held_by_user")) {
+        val outBound = json.parse(message).extract[OutBoundGetAccountsHeldByUser]
+        val obpMappedResponse = code.bankconnectors.LocalMappedConnector.getAccountsHeldByUser(outBound.user,None).map(_._1.head)
+        
+        obpMappedResponse.map(response => InBoundGetAccountsHeldByUser(          
+          
+          inboundAdapterCallContext = InboundAdapterCallContext(
+            correlationId = outBound.outboundAdapterCallContext.correlationId
+          ),
+          status = Status("", Nil),
+          data = response
+        )).recoverWith {
+          case e: Exception => Future(InBoundGetAccountsHeldByUser(          
+          
+          inboundAdapterCallContext = InboundAdapterCallContext(
+            correlationId = outBound.outboundAdapterCallContext.correlationId
+          ),
+            status = Status(e.getMessage, Nil),
+            data = null
+          ))
+        }
       } else if (obpMessageId.contains("check_bank_account_exists")) {
         val outBound = json.parse(message).extract[OutBoundCheckBankAccountExists]
         val obpMappedResponse = code.bankconnectors.LocalMappedConnector.checkBankAccountExists(outBound.bankId,outBound.accountId,None).map(_._1.head)
@@ -1240,6 +1282,27 @@ class ServerCallback(val ch: Channel) extends DeliverCallback with MdcLoggable{
             data = null
           ))
         }
+      } else if (obpMessageId.contains("get_transaction_request_types")) {
+        val outBound = json.parse(message).extract[OutBoundGetTransactionRequestTypes]
+        val obpMappedResponse = Future{code.bankconnectors.LocalMappedConnector.getTransactionRequestTypes(outBound.initiator,outBound.fromAccount,None).map(_._1).head}
+        
+        obpMappedResponse.map(response => InBoundGetTransactionRequestTypes(          
+          
+          inboundAdapterCallContext = InboundAdapterCallContext(
+            correlationId = outBound.outboundAdapterCallContext.correlationId
+          ),
+          status = Status("", Nil),
+          data = response
+        )).recoverWith {
+          case e: Exception => Future(InBoundGetTransactionRequestTypes(          
+          
+          inboundAdapterCallContext = InboundAdapterCallContext(
+            correlationId = outBound.outboundAdapterCallContext.correlationId
+          ),
+            status = Status(e.getMessage, Nil),
+            data = null
+          ))
+        }
       } else if (obpMessageId.contains("create_transaction_after_challenge_v210")) {
         val outBound = json.parse(message).extract[OutBoundCreateTransactionAfterChallengeV210]
         val obpMappedResponse = code.bankconnectors.LocalMappedConnector.createTransactionAfterChallengeV210(outBound.fromAccount,outBound.transactionRequest,None).map(_._1.head)
@@ -1450,7 +1513,7 @@ class ServerCallback(val ch: Channel) extends DeliverCallback with MdcLoggable{
             data = null
           ))
         }
-      }  else if (obpMessageId.contains("create_transaction_after_challengev300")) {
+      } else if (obpMessageId.contains("create_transaction_after_challengev300")) {
         val outBound = json.parse(message).extract[OutBoundCreateTransactionAfterChallengev300]
         val obpMappedResponse = code.bankconnectors.LocalMappedConnector.createTransactionAfterChallengev300(outBound.initiator,outBound.fromAccount,outBound.transReqId,outBound.transactionRequestType,None).map(_._1.head)
         
@@ -2114,6 +2177,27 @@ class ServerCallback(val ch: Channel) extends DeliverCallback with MdcLoggable{
           data = response
         )).recoverWith {
           case e: Exception => Future(InBoundCreateOrUpdateProductAttribute(          
+          
+          inboundAdapterCallContext = InboundAdapterCallContext(
+            correlationId = outBound.outboundAdapterCallContext.correlationId
+          ),
+            status = Status(e.getMessage, Nil),
+            data = null
+          ))
+        }
+      } else if (obpMessageId.contains("get_bank_attributes_by_bank")) {
+        val outBound = json.parse(message).extract[OutBoundGetBankAttributesByBank]
+        val obpMappedResponse = code.bankconnectors.LocalMappedConnector.getBankAttributesByBank(outBound.bankId,None).map(_._1.head)
+        
+        obpMappedResponse.map(response => InBoundGetBankAttributesByBank(          
+          
+          inboundAdapterCallContext = InboundAdapterCallContext(
+            correlationId = outBound.outboundAdapterCallContext.correlationId
+          ),
+          status = Status("", Nil),
+          data = response
+        )).recoverWith {
+          case e: Exception => Future(InBoundGetBankAttributesByBank(          
           
           inboundAdapterCallContext = InboundAdapterCallContext(
             correlationId = outBound.outboundAdapterCallContext.correlationId
@@ -3046,8 +3130,8 @@ class ServerCallback(val ch: Channel) extends DeliverCallback with MdcLoggable{
             data = null
           ))
         }
-// ---------- created on 2024-10-28T12:26:57Z
-//---------------- dynamic end ---------------------please don't modify this line                    
+// ---------- created on 2025-01-14T11:53:01Z
+//---------------- dynamic end ---------------------please don't modify this line                      
       } else {  
         Future {
           1

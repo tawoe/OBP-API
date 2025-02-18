@@ -49,7 +49,7 @@ trait ServerSetup extends FeatureSpec with SendServerRequests
   setPropsValues("migration_scripts.execute" -> "true")
   setPropsValues("allow_dauth" -> "true")
   setPropsValues("dauth.host" -> "127.0.0.1")
-  setPropsValues("jwt.token_secret"->"your-at-least-256-bit-secret-token")
+  setPropsValues("jwt_token_secret"->"your-at-least-256-bit-secret-token")
   setPropsValues("jwt.public_key_rsa" -> "src/test/resources/cert/public_dauth.pem")
   setPropsValues("transactionRequests_supported_types" -> "SEPA,SANDBOX_TAN,FREE_FORM,COUNTERPARTY,ACCOUNT,ACCOUNT_OTP,SIMPLE,CARD,AGENT_CASH_WITHDRAWAL")
   setPropsValues("CARD_OTP_INSTRUCTION_TRANSPORT" -> "DUMMY")

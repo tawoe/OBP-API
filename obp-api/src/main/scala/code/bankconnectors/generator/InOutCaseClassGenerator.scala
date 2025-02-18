@@ -9,7 +9,7 @@ object InOutCaseClassGenerator extends App {
   val allExistingClasses = getClassesFromPackage("com.openbankproject.commons.dto")
   
   val code = connectorDeclsMethodsReturnOBPRequiredType
-    .filter(it => allExistingClasses.toString.contains(s"OutBound${it.name.toString.capitalize} ")) //filter what we have implemented 
+    .filterNot(it => allExistingClasses.toString.contains(s"${it.name.toString.capitalize}")) //find what we have not implemented 
     .map(it => {
       val returnType = it.returnType
       val tp = extractReturnModel(returnType)
@@ -34,9 +34,10 @@ object InOutCaseClassGenerator extends App {
          |case class InBound${it.name.toString.capitalize} (inboundAdapterCallContext: InboundAdapterCallContext, status: Status, data: $payload) extends InBoundTrait[$payload]
      """.stripMargin
     })
+  println("#################################Started########################################################################")
   code.foreach(println)
   
   println("#################################Finished########################################################################")
-  println("Please copy and compair the result to obp-commons/src/main/scala/com/openbankproject/commons/model/CommonModel.scala")
+  println("Please copy and compair the result to obp-commons/src/main/scala/com/openbankproject/commons/dto/JsonsTransfer.scala")
 
 }

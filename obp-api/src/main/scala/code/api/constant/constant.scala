@@ -50,6 +50,7 @@ object Constant extends MdcLoggable {
   final val SYSTEM_STANDARD_VIEW_ID = "standard"
   final val SYSTEM_STAGE_ONE_VIEW_ID = "StageOne"
   final val SYSTEM_MANAGE_CUSTOM_VIEWS_VIEW_ID = "ManageCustomViews"
+  // UK Open Banking
   final val SYSTEM_READ_ACCOUNTS_BASIC_VIEW_ID = "ReadAccountsBasic"
   final val SYSTEM_READ_ACCOUNTS_DETAIL_VIEW_ID = "ReadAccountsDetail"
   final val SYSTEM_READ_BALANCES_VIEW_ID = "ReadBalances"
@@ -143,7 +144,15 @@ object RequestHeader {
   final lazy val `Consent-JWT` = "Consent-JWT"
   final lazy val `PSD2-CERT` = "PSD2-CERT"
   final lazy val `If-None-Match` = "If-None-Match"
-  final lazy val `TPP-Redirect-URL` = "TPP-Redirect-URL"
+
+  final lazy val `X-Request-ID` = "X-Request-ID" // Berlin Group
+  final lazy val `TPP-Redirect-URL` = "TPP-Redirect-URL" // Berlin Group
+  final lazy val Date = "Date" // Berlin Group
+  // Headers to support the signature function of Berlin Group
+  final lazy val Digest = "Digest" // Berlin Group
+  final lazy val Signature = "Signature" // Berlin Group
+  final lazy val `TPP-Signature-Certificate` = "TPP-Signature-Certificate" // Berlin Group
+
   /**
    * The If-Modified-Since request HTTP header makes the request conditional: 
    * the server sends back the requested resource, with a 200 status, 

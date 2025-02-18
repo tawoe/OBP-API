@@ -18,7 +18,7 @@ import code.api.v4_0_0.{JSONFactory400, PostCounterpartyJson400}
 import code.api.v5_0_0.JSONFactory500.{createPhysicalCardJson, createViewJsonV500, createViewsIdsJsonV500, createViewsJsonV500}
 import code.api.v5_1_0.{CreateCustomViewJson, PostCounterpartyLimitV510, PostVRPConsentRequestJsonV510}
 import code.bankconnectors.Connector
-import code.consent.{ConsentRequests, Consents}
+import code.consent.{ConsentRequests, ConsentStatus, Consents, MappedConsent}
 import code.consumer.Consumers
 import code.entitlement.Entitlement
 import code.metadata.counterparties.MappedCounterparty
@@ -40,6 +40,7 @@ import net.liftweb.json
 import net.liftweb.json.{Extraction, compactRender, prettyRender}
 import net.liftweb.util.Helpers.tryo
 import net.liftweb.util.{Helpers, Props, StringHelpers}
+import net.liftweb.mapper.By
 
 import java.util.UUID
 import java.util.concurrent.ThreadLocalRandom
@@ -929,7 +930,7 @@ trait APIMethods500 {
               )) map {
               i => unboxFullOrFail(i,callContext, ConsentRequestNotFound)
             }
-            _ <- Helper.booleanToFuture(ConsentRequestIsInvalid, cc=callContext){
+            _ <- Helper.booleanToFuture(s"$ConsentRequestIsInvalid, the current CONSENT_REQUEST_ID($consentRequestId) is already used to create a consent, please provide another one!", cc=callContext){
               Consents.consentProvider.vend.getConsentByConsentRequestId(consentRequestId).isEmpty
             }
             _ <- Helper.booleanToFuture(ConsentAllowedScaMethods, cc=callContext){
@@ -1202,34 +1203,54 @@ trait APIMethods500 {
             _ <- Future(Consents.consentProvider.vend.setJsonWebToken(createdConsent.consentId, consentJWT)) map {
               i => connectorEmptyResponse(i, callContext)
             }
-            challengeText = s"Your consent challenge : ${challengeAnswer}, Application: $applicationText"
-            _ <- scaMethod match {
-              case v if v == StrongCustomerAuthentication.EMAIL.toString => // Send the email
-                sendEmailNotification(callContext, consentRequestJson, challengeText)
-              case v if v == StrongCustomerAuthentication.SMS.toString =>
-                sendSmsNotification(callContext, consentRequestJson, challengeText)
-              case v if v == StrongCustomerAuthentication.IMPLICIT.toString =>
-                for {
-                  (consentImplicitSCA, callContext) <- NewStyle.function.getConsentImplicitSCA(user, callContext)
-                  status <- consentImplicitSCA.scaMethod match {
-                    case v if v == StrongCustomerAuthentication.EMAIL => // Send the email
-                      sendEmailNotification(callContext, consentRequestJson.copy(email=Some(consentImplicitSCA.recipient)), challengeText)
-                    case v if v == StrongCustomerAuthentication.SMS =>
-                      sendSmsNotification(callContext, consentRequestJson.copy(phone_number=Some(consentImplicitSCA.recipient)), challengeText)
-                    case _ => Future {
-                      "Success"
-                    }
-                  }} yield {
-                  status
+            //we need to check `skip_consent_sca_for_consumer_id_pairs` props, to see if we really need the SCA flow. 
+            //this is from callContext
+            grantorConsumerId = callContext.map(_.consumer.toOption.map(_.consumerId.get)).flatten.getOrElse("Unknown")
+            //this is from json body
+            granteeConsumerId = postConsentBodyCommonJson.consumer_id.getOrElse("Unknown")
+
+            shouldSkipConsentScaForConsumerIdPair = APIUtil.skipConsentScaForConsumerIdPairs.contains(
+              APIUtil.ConsumerIdPair(
+                grantorConsumerId,
+                granteeConsumerId
+              ))
+            mappedConsent <- if (shouldSkipConsentScaForConsumerIdPair) {
+              Future{
+                MappedConsent.find(By(MappedConsent.mConsentId, createdConsent.consentId)).map(_.mStatus(ConsentStatus.ACCEPTED.toString).saveMe()).head
+              }
+            } else {
+              val challengeText = s"Your consent challenge : ${challengeAnswer}, Application: $applicationText"
+              scaMethod match {
+                case v if v == StrongCustomerAuthentication.EMAIL.toString => // Send the email
+                  sendEmailNotification(callContext, consentRequestJson, challengeText)
+                case v if v == StrongCustomerAuthentication.SMS.toString =>
+                  sendSmsNotification(callContext, consentRequestJson, challengeText)
+                case v if v == StrongCustomerAuthentication.IMPLICIT.toString =>
+                  for {
+                    (consentImplicitSCA, callContext) <- NewStyle.function.getConsentImplicitSCA(user, callContext)
+                    status <- consentImplicitSCA.scaMethod match {
+                      case v if v == StrongCustomerAuthentication.EMAIL => // Send the email
+                        sendEmailNotification(callContext, consentRequestJson.copy(email = Some(consentImplicitSCA.recipient)), challengeText)
+                      case v if v == StrongCustomerAuthentication.SMS =>
+                        sendSmsNotification(callContext, consentRequestJson.copy(phone_number = Some(consentImplicitSCA.recipient)), challengeText)
+                      case _ => Future {
+                        "Success"
+                      }
+                    }} yield {
+                    status
+                  }
+                case _ => Future {
+                  "Success"
                 }
-              case _ =>Future{"Success"}
+              }
+              Future{createdConsent}
             }
           } yield {
             (ConsentJsonV500(
-              createdConsent.consentId,
+              mappedConsent.consentId,
               consentJWT,
-              createdConsent.status,
-              Some(createdConsent.consentRequestId),
+              mappedConsent.status,
+              Some(mappedConsent.consentRequestId),
               if (isVRPConsentRequest) Some(ConsentAccountAccessJson(bankId.value, accountId.value, viewId.value, HelperInfoJson(List(counterpartyId.value)))) else None
             ), HttpCode.`201`(callContext))
           }

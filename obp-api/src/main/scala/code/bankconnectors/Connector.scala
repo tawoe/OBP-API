@@ -303,6 +303,19 @@ trait Connector extends MdcLoggable {
                              callContext: Option[CallContext]
                            ): OBPReturnType[Box[AmountOfMoney]] =Future{(Failure(setUnimplementedError(nameOf(getChallengeThreshold _))), callContext)}
 
+  //TODO. WIP
+  def shouldRaiseConsentChallenge(
+    bankId: String,
+    accountId: String,
+    viewId: String,
+    consentRequestType: String,
+    userId: String,
+    username: String,
+    callContext: Option[CallContext]
+  ): OBPReturnType[Box[(Boolean, String)]] = Future {
+    (Failure(setUnimplementedError(nameOf(shouldRaiseConsentChallenge _))), callContext)
+  }
+
   def getPaymentLimit(
     bankId: String,
     accountId: String,

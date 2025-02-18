@@ -4,9 +4,9 @@ import java.text.SimpleDateFormat
 import java.util.{Date, UUID}
 import code.api.berlin.group.v1_3.JSONFactory_BERLIN_GROUP_1_3.{ConsentAccessJson, PostConsentJson}
 import code.api.util.ApiRole.{canCreateEntitlementAtAnyBank, canCreateEntitlementAtOneBank}
-import code.api.util.ErrorMessages.InvalidConnectorResponse
+import code.api.util.ErrorMessages.{InvalidConnectorResponse, NoViewReadAccountsBerlinGroup, CouldNotAssignAccountAccess}
 import code.api.v3_1_0.{PostConsentBodyCommonJson, PostConsentEntitlementJsonV310, PostConsentViewJsonV310}
-import code.api.{Constant, RequestHeader}
+import code.api.{APIFailure, Constant, RequestHeader}
 import code.bankconnectors.Connector
 import code.consent
 import code.consent.{ConsentStatus, Consents, MappedConsent}
@@ -128,9 +128,10 @@ object Consent extends MdcLoggable {
    * @return the boxed Consumer 
    */
   def getCurrentConsumerViaMtls(callContext: CallContext): Box[Consumer] = {
-    val clientCert: String = APIUtil.`getPSD2-CERT`(callContext.requestHeaders)
-      .getOrElse(SecureRandomUtil.csprng.nextLong().toString)
-    
+    val clientCert: String = APIUtil.`getPSD2-CERT`(callContext.requestHeaders) // MTLS certificate QWAC (Qualified Website Authentication Certificate)
+      .orElse(APIUtil.getTppSignatureCertificate(callContext.requestHeaders)) // Signature certificate QSealC (Qualified Electronic Seal Certificate)
+      .getOrElse(SecureRandomUtil.csprng.nextLong().toString) // Force to fail
+
     { // 1st search is via the original value
       logger.debug(s"getConsumerByPemCertificate ${clientCert}")
       Consumers.consumers.vend.getConsumerByPemCertificate(clientCert) 
@@ -300,7 +301,7 @@ object Consent extends MdcLoggable {
       val bankIdAccountIdViewId = BankIdAccountIdViewId(BankId(view.bank_id), AccountId(view.account_id),ViewId(view.view_id))
       Views.views.vend.revokeAccess(bankIdAccountIdViewId, user)
     }
-    val result = 
+    val result: List[Box[View]] = {
       for {
         view <- consent.views
       } yield {
@@ -312,9 +313,13 @@ object Consent extends MdcLoggable {
             // It's not system view
             Views.views.vend.grantAccessToCustomView(bankIdAccountIdViewId, user)
         }
-        "Added"
       }
-    if (result.forall(_ == "Added")) Full(user) else Failure("Cannot add permissions to the user with id: " + user.userId)
+    }
+    val errorMessages: List[String] = result.filterNot(_.isDefined).map {
+      case ParamFailure(_, _, _, APIFailure(msg, httpCode)) => msg
+      case Failure(message, _, _) => message
+    }
+    if (errorMessages.isEmpty) Full(user) else Failure(CouldNotAssignAccountAccess + errorMessages.mkString(", "))
   }
  
   private def applyConsentRulesCommonOldStyle(consentIdAsJwt: String, calContext: CallContext): Box[User] = {
@@ -692,9 +697,10 @@ object Consent extends MdcLoggable {
     val accounts: List[Future[ConsentView]] = consent.access.accounts.getOrElse(Nil) map { account =>
       Connector.connector.vend.getBankAccountByIban(account.iban.getOrElse(""), callContext) map { bankAccount =>
         logger.debug(s"createBerlinGroupConsentJWT.accounts.bankAccount: $bankAccount")
+        val error = s"${InvalidConnectorResponse} IBAN: ${account.iban.getOrElse("")} ${handleBox(bankAccount._1)}"
         ConsentView(
           bank_id = bankAccount._1.map(_.bankId.value).getOrElse(""),
-          account_id = bankAccount._1.map(_.accountId.value).getOrElse(""),
+          account_id = bankAccount._1.map(_.accountId.value).openOrThrowException(error),
           view_id = Constant.SYSTEM_READ_ACCOUNTS_BERLIN_GROUP_VIEW_ID
         )
       }
@@ -702,9 +708,10 @@ object Consent extends MdcLoggable {
     val balances: List[Future[ConsentView]] = consent.access.balances.getOrElse(Nil) map { account =>
       Connector.connector.vend.getBankAccountByIban(account.iban.getOrElse(""), callContext) map { bankAccount =>
         logger.debug(s"createBerlinGroupConsentJWT.balances.bankAccount: $bankAccount")
+        val error = s"${InvalidConnectorResponse} IBAN: ${account.iban.getOrElse("")} ${handleBox(bankAccount._1)}"
         ConsentView(
           bank_id = bankAccount._1.map(_.bankId.value).getOrElse(""),
-          account_id = bankAccount._1.map(_.accountId.value).getOrElse(""),
+          account_id = bankAccount._1.map(_.accountId.value).openOrThrowException(error),
           view_id = Constant.SYSTEM_READ_BALANCES_BERLIN_GROUP_VIEW_ID
         )
       }
@@ -712,9 +719,10 @@ object Consent extends MdcLoggable {
     val transactions: List[Future[ConsentView]] = consent.access.transactions.getOrElse(Nil) map { account =>
       Connector.connector.vend.getBankAccountByIban(account.iban.getOrElse(""), callContext) map { bankAccount =>
         logger.debug(s"createBerlinGroupConsentJWT.transactions.bankAccount: $bankAccount")
+        val error = s"${InvalidConnectorResponse} IBAN: ${account.iban.getOrElse("")} ${handleBox(bankAccount._1)}"
         ConsentView(
           bank_id = bankAccount._1.map(_.bankId.value).getOrElse(""),
-          account_id = bankAccount._1.map(_.accountId.value).getOrElse(""),
+          account_id = bankAccount._1.map(_.accountId.value).openOrThrowException(error),
           view_id = Constant.SYSTEM_READ_TRANSACTIONS_BERLIN_GROUP_VIEW_ID
         )
       }

@@ -18,10 +18,10 @@ import code.api.util.newstyle.BalanceNewStyle
 import code.api.util.newstyle.Consumer.createConsumerNewStyle
 import code.api.util.newstyle.RegulatedEntityNewStyle.{createRegulatedEntityNewStyle, deleteRegulatedEntityNewStyle, getRegulatedEntitiesNewStyle, getRegulatedEntityByEntityIdNewStyle}
 import code.api.v2_0_0.AccountsHelper.{accountTypeFilterText, getFilteredCoreAccounts}
-import code.api.v2_1_0.ConsumerRedirectUrlJSON
+import code.api.v2_1_0.{ConsumerRedirectUrlJSON, JSONFactory210}
 import code.api.v3_0_0.JSONFactory300
 import code.api.v3_0_0.JSONFactory300.createAggregateMetricJson
-import code.api.v3_1_0.{ConsentChallengeJsonV310, ConsentJsonV310}
+import code.api.v3_1_0.{ConsentChallengeJsonV310, ConsentJsonV310, PostConsentBodyCommonJson, PostConsentEmailJsonV310, PostConsentPhoneJsonV310}
 import code.api.v3_1_0.JSONFactory310.{createBadLoginStatusJson, createConsumerJSON, createRefreshUserJson}
 import code.api.v4_0_0.JSONFactory400.{createAccountBalancesJson, createBalancesJson, createNewCoreBankAccountJson}
 import code.api.v4_0_0.{JSONFactory400, PostAccountAccessJsonV400, PostApiCollectionJson400, PutConsentStatusJsonV400, PutConsentUserJsonV400, RevokedJsonV400}
@@ -31,6 +31,7 @@ import code.atmattribute.AtmAttribute
 import code.bankconnectors.Connector
 import code.consent.{ConsentRequests, ConsentStatus, Consents, MappedConsent}
 import code.consumer.Consumers
+import code.entitlement.Entitlement
 import code.loginattempts.LoginAttempt
 import code.metrics.APIMetrics
 import code.metrics.MappedMetric.userId
@@ -46,7 +47,7 @@ import code.views.system.{AccountAccess, ViewDefinition}
 import com.github.dwickern.macros.NameOf.nameOf
 import com.openbankproject.commons.ExecutionContext.Implicits.global
 import com.openbankproject.commons.model._
-import com.openbankproject.commons.model.enums.{AtmAttributeType, ConsentType, UserAttributeType}
+import com.openbankproject.commons.model.enums.{AtmAttributeType, ConsentType, StrongCustomerAuthentication, TransactionRequestStatus, UserAttributeType}
 import com.openbankproject.commons.util.{ApiVersion, ScannedApiVersion}
 import net.liftweb.common.Full
 import net.liftweb.http.rest.RestHelper
@@ -54,7 +55,7 @@ import net.liftweb.json
 import net.liftweb.json.{Extraction, compactRender, parse, prettyRender}
 import net.liftweb.mapper.By
 import net.liftweb.util.Helpers.tryo
-import net.liftweb.util.{Helpers, StringHelpers}
+import net.liftweb.util.{Helpers, Props, StringHelpers}
 
 import java.text.SimpleDateFormat
 import java.time.{LocalDate, ZoneId}
@@ -1683,7 +1684,7 @@ trait APIMethods510 {
          |
       """.stripMargin,
       EmptyBody,
-      consentJsonV500,
+      consentJsonV510,
       List(
         $UserNotLoggedIn,
         UnknownError
@@ -1843,7 +1844,305 @@ trait APIMethods510 {
           }
       }
     }
-    
+
+
+    val generalObpConsentText: String =
+      s"""
+         |
+         |An OBP Consent allows the holder of the Consent to call one or more endpoints.
+         |
+         |Consents must be created and authorisied using SCA (Strong Customer Authentication).
+         |
+         |That is, Consents can be created by an authorised User via the OBP REST API but they must be confirmed via an out of band (OOB) mechanism such as a code sent to a mobile phone.
+         |
+         |Each Consent has one of the following states: ${ConsentStatus.values.toList.sorted.mkString(", ")}.
+         |
+         |Each Consent is bound to a consumer i.e. you need to identify yourself over request header value Consumer-Key.
+         |For example:
+         |GET /obp/v4.0.0/users/current HTTP/1.1
+         |Host: 127.0.0.1:8080
+         |Consent-JWT: eyJhbGciOiJIUzI1NiJ9.eyJlbnRpdGxlbWVudHMiOlt7InJvbGVfbmFtZSI6IkNhbkdldEFueVVzZXIiLCJiYW5rX2lkIjoiIn
+         |1dLCJjcmVhdGVkQnlVc2VySWQiOiJhYjY1MzlhOS1iMTA1LTQ0ODktYTg4My0wYWQ4ZDZjNjE2NTciLCJzdWIiOiIzNDc1MDEzZi03YmY5LTQyNj
+         |EtOWUxYy0xZTdlNWZjZTJlN2UiLCJhdWQiOiI4MTVhMGVmMS00YjZhLTQyMDUtYjExMi1lNDVmZDZmNGQzYWQiLCJuYmYiOjE1ODA3NDE2NjcsIml
+         |zcyI6Imh0dHA6XC9cLzEyNy4wLjAuMTo4MDgwIiwiZXhwIjoxNTgwNzQ1MjY3LCJpYXQiOjE1ODA3NDE2NjcsImp0aSI6ImJkYzVjZTk5LTE2ZTY
+         |tNDM4Yi1hNjllLTU3MTAzN2RhMTg3OCIsInZpZXdzIjpbXX0.L3fEEEhdCVr3qnmyRKBBUaIQ7dk1VjiFaEBW8hUNjfg
+         |
+         |Consumer-Key: ejznk505d132ryomnhbx1qmtohurbsbb0kijajsk
+         |cache-control: no-cache
+         |
+         |Maximum time to live of the token is specified over props value consents.max_time_to_live. In case isn't defined default value is 3600 seconds.
+         |
+         |Example of POST JSON:
+         |{
+         |  "everything": false,
+         |  "views": [
+         |    {
+         |      "bank_id": "GENODEM1GLS",
+         |      "account_id": "8ca8a7e4-6d02-40e3-a129-0b2bf89de9f0",
+         |      "view_id": "${Constant.SYSTEM_OWNER_VIEW_ID}"
+         |    }
+         |  ],
+         |  "entitlements": [
+         |    {
+         |      "bank_id": "GENODEM1GLS",
+         |      "role_name": "CanGetCustomer"
+         |    }
+         |  ],
+         |  "consumer_id": "7uy8a7e4-6d02-40e3-a129-0b2bf89de8uh",
+         |  "email": "eveline@example.com",
+         |  "valid_from": "2020-02-07T08:43:34Z",
+         |  "time_to_live": 3600
+         |}
+         |Please note that only optional fields are: consumer_id, valid_from and time_to_live.
+         |In case you omit they the default values are used:
+         |consumer_id = consumer of current user
+         |valid_from = current time
+         |time_to_live = consents.max_time_to_live
+         |
+      """.stripMargin
+
+    staticResourceDocs += ResourceDoc(
+      createConsentImplicit,
+      implementedInApiVersion,
+      nameOf(createConsentImplicit),
+      "POST",
+      "/my/consents/IMPLICIT",
+      "Create Consent (IMPLICIT)",
+      s"""
+         |
+         |This endpoint starts the process of creating a Consent.
+         |
+         |The Consent is created in an ${ConsentStatus.INITIATED} state.
+         |
+         |A One Time Password (OTP) (AKA security challenge) is sent Out of Band (OOB) to the User via the transport defined in SCA_METHOD
+         |SCA_METHOD is typically "SMS","EMAIL" or "IMPLICIT". "EMAIL" is used for testing purposes. OBP mapped mode "IMPLICIT" is "EMAIL".
+         |Other mode, bank can decide it in the connector method 'getConsentImplicitSCA'.
+         |
+         |When the Consent is created, OBP (or a backend system) stores the challenge so it can be checked later against the value supplied by the User with the Answer Consent Challenge endpoint.
+         |
+         |$generalObpConsentText
+         |
+         |${userAuthenticationMessage(true)}
+         |
+         |Example 1:
+         |{
+         |  "everything": true,
+         |  "views": [],
+         |  "entitlements": [],
+         |  "consumer_id": "7uy8a7e4-6d02-40e3-a129-0b2bf89de8uh",
+         |}
+         |
+         |Please note that consumer_id is optional field
+         |Example 2:
+         |{
+         |  "everything": true,
+         |  "views": [],
+         |  "entitlements": [],
+         |}
+         |
+         |Please note if everything=false you need to explicitly specify views and entitlements
+         |Example 3:
+         |{
+         |  "everything": false,
+         |  "views": [
+         |    {
+         |      "bank_id": "GENODEM1GLS",
+         |      "account_id": "8ca8a7e4-6d02-40e3-a129-0b2bf89de9f0",
+         |      "view_id": "${Constant.SYSTEM_OWNER_VIEW_ID}"
+         |    }
+         |  ],
+         |  "entitlements": [
+         |    {
+         |      "bank_id": "GENODEM1GLS",
+         |      "role_name": "CanGetCustomer"
+         |    }
+         |  ],
+         |  "consumer_id": "7uy8a7e4-6d02-40e3-a129-0b2bf89de8uh",
+         |}
+         |
+         |""",
+      postConsentImplicitJsonV310,
+      consentJsonV310,
+      List(
+        UserNotLoggedIn,
+        BankNotFound,
+        InvalidJsonFormat,
+        ConsentAllowedScaMethods,
+        RolesAllowedInConsent,
+        ViewsAllowedInConsent,
+        ConsumerNotFoundByConsumerId,
+        ConsumerIsDisabled,
+        MissingPropsValueAtThisInstance,
+        SmsServerNotResponding,
+        InvalidConnectorResponse,
+        UnknownError
+      ),
+      apiTagConsent :: apiTagPSD2AIS :: apiTagPsd2 :: Nil)
+
+    lazy val createConsentImplicit = createConsent
+
+    lazy val createConsent: OBPEndpoint = {
+      case "my" :: "consents" :: scaMethod :: Nil JsonPost json -> _ => {
+        cc =>
+          implicit val ec = EndpointContext(Some(cc))
+          for {
+            (Full(user), callContext) <- authenticatedAccess(cc)
+            _ <- Helper.booleanToFuture(ConsentAllowedScaMethods, cc = callContext) {
+              List(StrongCustomerAuthentication.SMS.toString(), StrongCustomerAuthentication.EMAIL.toString(), StrongCustomerAuthentication.IMPLICIT.toString()).exists(_ == scaMethod)
+            }
+            failMsg = s"$InvalidJsonFormat The Json body should be the $PostConsentBodyCommonJson "
+            consentJson <- NewStyle.function.tryons(failMsg, 400, callContext) {
+              json.extract[PostConsentBodyCommonJson]
+            }
+            maxTimeToLive = APIUtil.getPropsAsIntValue(nameOfProperty = "consents.max_time_to_live", defaultValue = 3600)
+            _ <- Helper.booleanToFuture(s"$ConsentMaxTTL ($maxTimeToLive)", cc = callContext) {
+              consentJson.time_to_live match {
+                case Some(ttl) => ttl <= maxTimeToLive
+                case _ => true
+              }
+            }
+            requestedEntitlements = consentJson.entitlements
+            myEntitlements <- Entitlement.entitlement.vend.getEntitlementsByUserIdFuture(user.userId)
+            _ <- Helper.booleanToFuture(RolesAllowedInConsent, cc = callContext) {
+              requestedEntitlements.forall(
+                re => myEntitlements.getOrElse(Nil).exists(
+                  e => e.roleName == re.role_name && e.bankId == re.bank_id
+                )
+              )
+            }
+            requestedViews = consentJson.views
+            (_, assignedViews) <- Future(Views.views.vend.privateViewsUserCanAccess(user))
+            _ <- Helper.booleanToFuture(ViewsAllowedInConsent, cc = callContext) {
+              requestedViews.forall(
+                rv => assignedViews.exists {
+                  e =>
+                    e.view_id == rv.view_id &&
+                      e.bank_id == rv.bank_id &&
+                      e.account_id == rv.account_id
+                }
+              )
+            }
+            (consumerId, applicationText) <- consentJson.consumer_id match {
+              case Some(id) => NewStyle.function.checkConsumerByConsumerId(id, callContext) map {
+                c => (Some(c.consumerId.get), c.description)
+              }
+              case None => Future(None, "Any application")
+            }
+
+
+            challengeAnswer = Props.mode match {
+              case Props.RunModes.Test => Consent.challengeAnswerAtTestEnvironment
+              case _ => SecureRandomUtil.numeric()
+            }
+            createdConsent <- Future(Consents.consentProvider.vend.createObpConsent(user, challengeAnswer, None)) map {
+              i => connectorEmptyResponse(i, callContext)
+            }
+            consentJWT =
+              Consent.createConsentJWT(
+                user,
+                consentJson,
+                createdConsent.secret,
+                createdConsent.consentId,
+                consumerId,
+                consentJson.valid_from,
+                consentJson.time_to_live.getOrElse(3600)
+              )
+            _ <- Future(Consents.consentProvider.vend.setJsonWebToken(createdConsent.consentId, consentJWT)) map {
+              i => connectorEmptyResponse(i, callContext)
+            }
+
+            //we need to check `skip_consent_sca_for_consumer_id_pairs` props, to see if we really need the SCA flow. 
+            //this is from callContext
+            grantorConsumerId = callContext.map(_.consumer.toOption.map(_.consumerId.get)).flatten.getOrElse("Unknown")
+            //this is from json body
+            granteeConsumerId = consentJson.consumer_id.getOrElse("Unknown")
+            
+            shouldSkipConsentScaForConsumerIdPair = APIUtil.skipConsentScaForConsumerIdPairs.contains(
+              APIUtil.ConsumerIdPair(
+                grantorConsumerId,
+                granteeConsumerId
+            ))
+            mappedConsent <- if (shouldSkipConsentScaForConsumerIdPair) {
+              Future{
+                 MappedConsent.find(By(MappedConsent.mConsentId, createdConsent.consentId)).map(_.mStatus(ConsentStatus.ACCEPTED.toString).saveMe()).head
+              }
+            } else {
+              val challengeText = s"Your consent challenge : ${challengeAnswer}, Application: $applicationText"
+              scaMethod match {
+                case v if v == StrongCustomerAuthentication.EMAIL.toString => // Send the email
+                  for {
+                    failMsg <- Future {
+                      s"$InvalidJsonFormat The Json body should be the $PostConsentEmailJsonV310"
+                    }
+                    postConsentEmailJson <- NewStyle.function.tryons(failMsg, 400, callContext) {
+                      json.extract[PostConsentEmailJsonV310]
+                    }
+                    (status, callContext) <- NewStyle.function.sendCustomerNotification(
+                      StrongCustomerAuthentication.EMAIL,
+                      postConsentEmailJson.email,
+                      Some("OBP Consent Challenge"),
+                      challengeText,
+                      callContext
+                    )
+                  } yield  {
+                    createdConsent
+                  }
+                case v if v == StrongCustomerAuthentication.SMS.toString =>
+                  for {
+                    failMsg <- Future {
+                      s"$InvalidJsonFormat The Json body should be the $PostConsentPhoneJsonV310"
+                    }
+                    postConsentPhoneJson <- NewStyle.function.tryons(failMsg, 400, callContext) {
+                      json.extract[PostConsentPhoneJsonV310]
+                    }
+                    phoneNumber = postConsentPhoneJson.phone_number
+                    (status, callContext) <- NewStyle.function.sendCustomerNotification(
+                      StrongCustomerAuthentication.SMS,
+                      phoneNumber,
+                      None,
+                      challengeText,
+                      callContext
+                    )
+                  } yield  {
+                    createdConsent
+                  }
+                case v if v == StrongCustomerAuthentication.IMPLICIT.toString =>
+                  for {
+                    (consentImplicitSCA, callContext) <- NewStyle.function.getConsentImplicitSCA(user, callContext)
+                    status <- consentImplicitSCA.scaMethod match {
+                      case v if v == StrongCustomerAuthentication.EMAIL => // Send the email
+                        NewStyle.function.sendCustomerNotification(
+                          StrongCustomerAuthentication.EMAIL,
+                          consentImplicitSCA.recipient,
+                          Some("OBP Consent Challenge"),
+                          challengeText,
+                          callContext
+                        )
+                      case v if v == StrongCustomerAuthentication.SMS =>
+                        NewStyle.function.sendCustomerNotification(
+                          StrongCustomerAuthentication.SMS,
+                          consentImplicitSCA.recipient,
+                          None,
+                          challengeText,
+                          callContext
+                        )
+                      case _ => Future {
+                        "Success"
+                      }
+                    }} yield {
+                    createdConsent
+                  }
+                case _ => Future {
+                  createdConsent
+                }
+              }
+            }
+          } yield {
+            (ConsentJsonV310(mappedConsent.consentId, consentJWT, mappedConsent.status), HttpCode.`201`(callContext))
+          }
+      }
+    }
+
     
    staticResourceDocs += ResourceDoc(
      mtlsClientCertificateInfo,
@@ -2078,6 +2377,41 @@ trait APIMethods510 {
             }
           } yield {
             (JSONFactory400.createUserLockStatusJson(userLocks), HttpCode.`200`(callContext))
+          }
+      }
+    }
+
+    staticResourceDocs += ResourceDoc(
+      validateUserByUserId,
+      implementedInApiVersion,
+      nameOf(validateUserByUserId),
+      "PUT",
+      "/management/users/USER_ID",
+      "Validate a user",
+      s"""
+         |Validate the User by USER_ID.
+         |
+         |${userAuthenticationMessage(true)}
+         |
+         |""".stripMargin,
+      EmptyBody,
+      userLockStatusJson,
+      List(
+        $UserNotLoggedIn,
+        UserNotFoundByUserId,
+        UserHasMissingRoles,
+        UnknownError
+      ),
+      List(apiTagUser),
+      Some(List(canValidateUser)))
+    lazy val validateUserByUserId: OBPEndpoint = {
+      case "management" :: "users" :: userId :: Nil JsonPut req => {
+        cc => implicit val ec = EndpointContext(Some(cc))
+          for {
+            (user, callContext) <- NewStyle.function.findByUserId(userId, cc.callContext)
+            (userValidated, callContext) <- NewStyle.function.validateUser(user.userPrimaryKey, callContext)
+          } yield {
+            (UserValidatedJson(userValidated.validated.get), HttpCode.`200`(callContext))
           }
       }
     }
@@ -3100,6 +3434,43 @@ trait APIMethods510 {
       }
     }
 
+
+    staticResourceDocs += ResourceDoc(
+      getTransactionRequestById,
+      implementedInApiVersion,
+      nameOf(getTransactionRequestById),
+      "GET",
+      "/management/transaction-requests/TRANSACTION_REQUEST_ID",
+      "Get Transaction Request by ID.",
+      """Returns transaction request for transaction specified by TRANSACTION_REQUEST_ID.
+        |
+      """.stripMargin,
+      EmptyBody,
+      transactionRequestWithChargeJSON210,
+      List(
+        $UserNotLoggedIn,
+        GetTransactionRequestsException,
+        UnknownError
+      ),
+      List(apiTagTransactionRequest, apiTagPSD2PIS, apiTagPsd2),
+      Some(List(canGetTransactionRequestAtAnyBank))
+    )
+
+    lazy val getTransactionRequestById: OBPEndpoint = {
+      case "management" :: "transaction-requests" :: TransactionRequestId(requestId) :: Nil JsonGet _ => {
+        cc =>
+          implicit val ec = EndpointContext(Some(cc))
+          for {
+            (transactionRequest, callContext) <- NewStyle.function.getTransactionRequestImpl(requestId, cc.callContext)
+          } yield {
+            val json = JSONFactory210.createTransactionRequestWithChargeJSON(transactionRequest)
+            (json, HttpCode.`200`(callContext))
+          }
+      }
+    }
+
+
+
     resourceDocs += ResourceDoc(
       getTransactionRequests,
       implementedInApiVersion,
@@ -3176,6 +3547,50 @@ trait APIMethods510 {
           }
       }
     }
+
+
+    staticResourceDocs += ResourceDoc(
+      updateTransactionRequestStatus,
+      implementedInApiVersion,
+      nameOf(updateTransactionRequestStatus),
+      "PUT",
+      "/management/transaction-requests/TRANSACTION_REQUEST_ID",
+      "Update Transaction Request Status",
+      s""" Update Transaction Request Status
+         |
+         |${userAuthenticationMessage(true)}
+         |
+         |""",
+      PostTransactionRequestStatusJsonV510(TransactionRequestStatus.COMPLETED.toString),
+      PostTransactionRequestStatusJsonV510(TransactionRequestStatus.COMPLETED.toString),
+      List(
+        $UserNotLoggedIn,
+        $BankNotFound,
+        $BankAccountNotFound,
+        InvalidJsonFormat,
+        UnknownError
+      ),
+      List(apiTagTransactionRequest),
+      Some(List(canUpdateTransactionRequestStatusAtAnyBank))
+    )
+
+    lazy val updateTransactionRequestStatus : OBPEndpoint = {
+      case "management" :: "transaction-requests" :: TransactionRequestId(transactionRequestId) :: Nil JsonPut json -> _ => {
+        cc =>
+          implicit val ec = EndpointContext(Some(cc))
+          val failMsg = s"$InvalidJsonFormat The Json body should be the $PostTransactionRequestStatusJsonV510"
+          for {
+            postedData <- NewStyle.function.tryons(failMsg, 400, cc.callContext) {
+              json.extract[PostTransactionRequestStatusJsonV510]
+            }
+            _ <- NewStyle.function.saveTransactionRequestStatusImpl(transactionRequestId, postedData.status, cc.callContext)
+            (transactionRequest, callContext) <- NewStyle.function.getTransactionRequestImpl(transactionRequestId, cc.callContext)
+          } yield {
+            (TransactionRequestStatusJsonV510(transactionRequest.id.value, transactionRequest.status), HttpCode.`200`(callContext))
+          }
+      }
+    }
+
     
     staticResourceDocs += ResourceDoc(
       getAccountAccessByUserId,

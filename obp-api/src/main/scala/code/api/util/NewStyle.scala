@@ -368,17 +368,7 @@ object NewStyle extends MdcLoggable{
       val viewIds = List(ViewId(SYSTEM_READ_ACCOUNTS_BERLIN_GROUP_VIEW_ID))
       Views.views.vend.getPrivateBankAccountsFuture(user, viewIds) map { i =>
         if(i.isEmpty) {
-          (unboxFullOrFail(Empty, callContext, NoViewReadAccountsBerlinGroup , 403), callContext)
-        } else {
-          (i, callContext )
-        }
-      }
-    }
-    def getAccountListThroughView(user : User, viewId: ViewId, callContext: Option[CallContext]): OBPReturnType[List[BankIdAccountId]] = {
-      val viewIds = List(viewId)
-      Views.views.vend.getPrivateBankAccountsFuture(user, viewIds) map { i =>
-        if(i.isEmpty) {
-          (unboxFullOrFail(Empty, callContext, NoViewReadAccountsBerlinGroup , 403), callContext)
+          (unboxFullOrFail(Empty, callContext, s"$NoViewReadAccountsBerlinGroup {$SYSTEM_READ_ACCOUNTS_BERLIN_GROUP_VIEW_ID}" , 403), callContext)
         } else {
           (i, callContext )
         }
@@ -1119,6 +1109,10 @@ object NewStyle extends MdcLoggable{
         case _ =>
           (false, callContext)
       }
+    }
+    def validateUser(userPrimaryKey: UserPrimaryKey, callContext: Option[CallContext]): OBPReturnType[AuthUser] = Future {
+      val response = AuthUser.validateAuthUser(userPrimaryKey)
+      (unboxFullOrFail(response, callContext, s"$UserNotFoundById", 404), callContext)
     }
 
     def findByUserId(userId: String, callContext: Option[CallContext]): OBPReturnType[User] = {

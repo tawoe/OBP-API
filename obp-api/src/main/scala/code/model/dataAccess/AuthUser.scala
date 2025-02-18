@@ -96,6 +96,8 @@ class AuthUser extends MegaProtoUser[AuthUser] with CreatedUpdated with MdcLogga
   def getSingleton = AuthUser // what's the "meta" server
 
   object user extends MappedLongForeignKey(this, ResourceUser)
+  
+  object passwordShouldBeChanged extends MappedBoolean(this)
 
   override lazy val firstName = new MyFirstName
   
@@ -185,7 +187,7 @@ class AuthUser extends MegaProtoUser[AuthUser] with CreatedUpdated with MdcLogga
       case e if usernameRegex.findFirstMatchIn(e).isDefined => Nil
       case _                                                => List(FieldError(this, Text(msg)))
     }
-    override def displayName = S.?("Username")
+    override def displayName = Helper.i18n("Username")
     @deprecated("Use UniqueIndex(username, provider)","27 December 2021")
     override def dbIndexed_? = false // We use more general index UniqueIndex(username, provider) :: super.dbIndexes
     override def validations = isEmpty(Helper.i18n("Please.enter.your.username")) _ ::
@@ -398,7 +400,7 @@ class AuthUser extends MegaProtoUser[AuthUser] with CreatedUpdated with MdcLogga
     override def validate = i_is_! match {
       case null                  => List(FieldError(this, Text(Helper.i18n("Please.enter.your.email"))))
       case e if e.trim.isEmpty   => List(FieldError(this, Text(Helper.i18n("Please.enter.your.email"))))
-      case e if (!isEmailValid(e))  => List(FieldError(this, Text(S.?("invalid.email.address"))))
+      case e if (!isEmailValid(e))  => List(FieldError(this, Text(Helper.i18n("invalid.email.address"))))
       case _                     => Nil
     }
     override def _toForm: Box[Elem] =
@@ -1668,6 +1670,13 @@ def restoreSomeSessions(): Unit = {
         scrambledUser.save
       case Empty => true // There is a resource user but no the correlated Auth user 
       case _ => false // Error case
+    }
+  }
+
+  def validateAuthUser(userPrimaryKey: UserPrimaryKey): Box[AuthUser] = tryo {
+    AuthUser.find(By(AuthUser.user, userPrimaryKey.value)) match {
+      case Full(user) =>
+        user.validated(true).saveMe()
     }
   }
   

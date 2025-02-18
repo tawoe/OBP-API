@@ -1,9 +1,7 @@
 package code.api.v5_1_0
 
-import java.util.UUID
-
 import code.api.util.APIUtil.OAuth._
-import code.api.util.ApiRole.{CanGetAnyUser, CanGetEntitlementsForAnyUserAtAnyBank}
+import code.api.util.ApiRole.{CanGetAnyUser, CanGetEntitlementsForAnyUserAtAnyBank, CanValidateUser}
 import code.api.util.ErrorMessages.{UserHasMissingRoles, UserNotLoggedIn, attemptedToOpenAnEmptyBox}
 import code.api.v3_0_0.UserJsonV300
 import code.api.v4_0_0.UserJsonV400
@@ -14,7 +12,10 @@ import code.users.Users
 import com.github.dwickern.macros.NameOf.nameOf
 import com.openbankproject.commons.model.ErrorMessage
 import com.openbankproject.commons.util.ApiVersion
+import net.liftweb.json.Serialization.write
 import org.scalatest.Tag
+
+import java.util.UUID
 
 class UserTest extends V510ServerSetup {
   /**
@@ -27,7 +28,8 @@ class UserTest extends V510ServerSetup {
   object VersionOfApi extends Tag(ApiVersion.v5_1_0.toString)
   object ApiEndpoint1 extends Tag(nameOf(Implementations5_1_0.getUserByProviderAndUsername))
   object ApiEndpoint2 extends Tag(nameOf(Implementations5_1_0.getEntitlementsAndPermissions))
-  
+  object ValidateUserByUserId extends Tag(nameOf(Implementations5_1_0.validateUserByUserId))
+
   feature(s"test $ApiEndpoint1 version $VersionOfApi - Unauthorized access") {
     scenario("We will call the endpoint without user credentials", ApiEndpoint1, VersionOfApi) {
       When("We make a request v5.1.0")
@@ -101,6 +103,29 @@ class UserTest extends V510ServerSetup {
       response.body.extract[UserJsonV300]
       // Clean up
       Users.users.vend.deleteResourceUser(user.id.get)
+    }
+  }
+
+
+  feature(s"test $ValidateUserByUserId version $VersionOfApi - Unauthorized access") {
+    scenario("We will call the endpoint without user credentials", ValidateUserByUserId, VersionOfApi) {
+      When("We make a request v5.1.0")
+      val request = (v5_1_0_Request / "management" / "users" / resourceUser1.userId ).PUT
+      val response = makePutRequest(request, write(UserValidatedJson(true)))
+      Then("We should get a 401")
+      response.code should equal(401)
+      response.body.extract[ErrorMessage].message should equal(UserNotLoggedIn)
+    }
+  }
+
+  feature(s"test $ValidateUserByUserId version $VersionOfApi - Authorized access") {
+    scenario("We will call the endpoint with user credentials but without a proper entitlement", ValidateUserByUserId, VersionOfApi) {
+      When("We make a request v5.1.0")
+      val request = (v5_1_0_Request / "management" / "users" / resourceUser1.userId ).PUT <@ (user1)
+      val response = makePutRequest(request, write(UserValidatedJson(true)))
+      Then("error should be " + UserHasMissingRoles + CanValidateUser)
+      response.code should equal(403)
+      response.body.extract[ErrorMessage].message should be(UserHasMissingRoles + CanValidateUser)
     }
   }
   

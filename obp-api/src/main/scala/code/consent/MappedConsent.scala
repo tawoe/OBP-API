@@ -65,13 +65,15 @@ object MappedConsentProvider extends ConsentProvider {
 
 
   private def getQueryParams(queryParams: List[OBPQueryParam]) = {
-    val limit = queryParams.collect { case OBPLimit(value) => MaxRows[MappedConsent](value) }.headOption
-    val offset = queryParams.collect { case OBPOffset(value) => StartAt[MappedConsent](value) }.headOption
+    val limit = queryParams.collectFirst { case OBPLimit(value) => MaxRows[MappedConsent](value) }
+    val offset = queryParams.collectFirst { case OBPOffset(value) => StartAt[MappedConsent](value) }
     // The optional variables:
-    val consumerId = queryParams.collect { case OBPConsumerId(value) => By(MappedConsent.mConsumerId, value)}.headOption
-    val consentId = queryParams.collect { case OBPConsentId(value) => By(MappedConsent.mConsentId, value)}.headOption
-    val userId = queryParams.collect { case OBPUserId(value) => By(MappedConsent.mUserId, value)}.headOption
-    val status = queryParams.collect { case OBPStatus(value) => By(MappedConsent.mStatus, value.toUpperCase())}.headOption
+    val consumerId = queryParams.collectFirst { case OBPConsumerId(value) => By(MappedConsent.mConsumerId, value) }
+    val consentId = queryParams.collectFirst { case OBPConsentId(value) => By(MappedConsent.mConsentId, value) }
+    val userId = queryParams.collectFirst { case OBPUserId(value) => By(MappedConsent.mUserId, value) }
+    val status = queryParams.collectFirst {
+      case OBPStatus(value) => ByList(MappedConsent.mStatus, List(value.toLowerCase(), value.toUpperCase()))
+    }
 
     Seq(
       offset.toSeq,

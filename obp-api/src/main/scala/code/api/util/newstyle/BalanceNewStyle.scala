@@ -1,12 +1,12 @@
 package code.api.util.newstyle
 
 import code.api.util.APIUtil.{OBPReturnType, unboxFullOrFail}
-import code.api.util.ErrorMessages.InvalidConnectorResponseForGetBankAccounts
+import code.api.util.ErrorMessages.{InvalidConnectorResponse}
 import code.api.util.{APIUtil, CallContext}
 import code.bankconnectors.Connector
 import code.views.Views
 import com.openbankproject.commons.model.{AccountBalances, AccountsBalances, BankId, BankIdAccountId, User, ViewId}
-
+import com.github.dwickern.macros.NameOf.nameOf
 import scala.concurrent.Future
 
 object BalanceNewStyle {
@@ -46,13 +46,13 @@ object BalanceNewStyle {
 
   def getBankAccountBalances(bankIdAccountId: BankIdAccountId, callContext: Option[CallContext]): OBPReturnType[AccountBalances] = {
     Connector.connector.vend.getBankAccountBalances(bankIdAccountId: BankIdAccountId, callContext: Option[CallContext]) map { i =>
-      (unboxFullOrFail(i._1, callContext,s"$InvalidConnectorResponseForGetBankAccounts", 400 ), i._2)
+      (unboxFullOrFail(i._1, callContext,s"$InvalidConnectorResponse ${nameOf(getBankAccountBalances _)} ", 400 ), i._2)
     }
   }
 
   def getBankAccountsBalances(bankIdAccountIds: List[BankIdAccountId], callContext: Option[CallContext]): OBPReturnType[AccountsBalances] = {
     Connector.connector.vend.getBankAccountsBalances(bankIdAccountIds: List[BankIdAccountId], callContext: Option[CallContext]) map { i =>
-      (unboxFullOrFail(i._1, callContext,s"$InvalidConnectorResponseForGetBankAccounts", 400 ), i._2)
+      (unboxFullOrFail(i._1, callContext,s"$InvalidConnectorResponse ${nameOf(getBankAccountsBalances _)}", 400 ), i._2)
     }
   }
 

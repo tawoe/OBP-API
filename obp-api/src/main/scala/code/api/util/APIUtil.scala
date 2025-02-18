@@ -255,6 +255,16 @@ object APIUtil extends MdcLoggable with CustomJsonFormats{
       case _ => None
     }
   }
+  /**
+   * Purpose of this helper function is to get the PSD2-CERT value from a Request Headers.
+   * @return the PSD2-CERT value from a Request Header as a String
+   */
+  def getTppSignatureCertificate(requestHeaders: List[HTTPParam]): Option[String] = {
+    requestHeaders.toSet.filter(_.name == RequestHeader.`TPP-Signature-Certificate`).toList match {
+      case x :: Nil => Some(x.values.mkString(", "))
+      case _ => None
+    }
+  }
 
   def getRequestHeader(name: String, requestHeaders: List[HTTPParam]): String = {
     requestHeaders.toSet.filter(_.name.toLowerCase == name.toLowerCase).toList match {
@@ -600,6 +610,11 @@ object APIUtil extends MdcLoggable with CustomJsonFormats{
   case class EmailDomainToSpaceMapping(
     domain: String,
     bank_ids: List[String]
+  )
+  //This is used for get the value from props `skip_consent_sca_for_consumer_id_pairs`
+  case class ConsumerIdPair(
+    grantor_consumer_id: String,
+    grantee_consumer_id: String
   )
   
   case class EmailDomainToEntitlementMapping(
@@ -2978,6 +2993,9 @@ object APIUtil extends MdcLoggable with CustomJsonFormats{
 
     val authHeaders = AuthorisationUtil.getAuthorisationHeaders(reqHeaders)
 
+    // Identify consumer via certificate
+    val consumerByCertificate = Consent.getCurrentConsumerViaMtls(callContext = cc)
+
     val res =
       if (authHeaders.size > 1) { // Check Authorization Headers ambiguity
         Future { (Failure(ErrorMessages.AuthorizationHeaderAmbiguity + s"${authHeaders}"), None) }
@@ -3104,7 +3122,7 @@ object APIUtil extends MdcLoggable with CustomJsonFormats{
           // - Authorization: Basic mF_9.B5f-4.1JqM
           Future { (Failure(ErrorMessages.InvalidAuthorizationHeader), Some(cc)) }
         } else {
-          Future { (Empty, Some(cc)) }
+          Future { (Empty, Some(cc.copy(consumer = consumerByCertificate))) }
         }
       }
 
@@ -3167,7 +3185,7 @@ object APIUtil extends MdcLoggable with CustomJsonFormats{
   }
 
   def connectorEmptyResponse[T](box: Box[T], cc: Option[CallContext])(implicit m: Manifest[T]): T = {
-    unboxFullOrFail(box, cc, InvalidConnectorResponse, 400)
+    unboxFullOrFail(box, cc, s"$InvalidConnectorResponse ${nameOf(connectorEmptyResponse _)}" , 400)
   }
 
   def unboxFuture[T](box: Box[Future[T]]): Future[Box[T]] = box match {
@@ -3221,6 +3239,13 @@ object APIUtil extends MdcLoggable with CustomJsonFormats{
       val reqHeaders = result._2.map(_.requestHeaders).getOrElse(Nil)
       // Verify signed request
       JwsUtil.verifySignedRequest(body, verb, url, reqHeaders, result)
+    }  map { result =>
+      val url = result._2.map(_.url).getOrElse("None")
+      val verb = result._2.map(_.verb).getOrElse("None")
+      val body = result._2.flatMap(_.httpBody)
+      val reqHeaders = result._2.map(_.requestHeaders).getOrElse(Nil)
+      // Verify signed request (Berlin Group)
+      BerlinGroupSigning.verifySignedRequest(body, verb, url, reqHeaders, result)
     } map {
       result =>
         val excludeFunctions = getPropsValue("rate_limiting.exclude_endpoints", "root").split(",").toList
@@ -3270,6 +3295,13 @@ object APIUtil extends MdcLoggable with CustomJsonFormats{
       val reqHeaders = result._2.map(_.requestHeaders).getOrElse(Nil)
       // Verify signed request if need be
       JwsUtil.verifySignedRequest(body, verb, url, reqHeaders, result)
+    }  map { result =>
+      val url = result._2.map(_.url).getOrElse("None")
+      val verb = result._2.map(_.verb).getOrElse("None")
+      val body = result._2.flatMap(_.httpBody)
+      val reqHeaders = result._2.map(_.requestHeaders).getOrElse(Nil)
+      // Verify signed request if need be
+      BerlinGroupSigning.verifySignedRequest(body, verb, url, reqHeaders, result)
     } map { result =>
       result._1 match {
         case Empty if result._2.flatMap(_.consumer).isDefined => // There is no error and Consumer is defined
@@ -4727,6 +4759,23 @@ object APIUtil extends MdcLoggable with CustomJsonFormats{
     }
 
     APIUtil.getPropsValue("email_domain_to_space_mappings").map(extractor).getOrElse(Nil)
+  }
+
+  val skipConsentScaForConsumerIdPairs: List[ConsumerIdPair] = {
+    def extractor(str: String) = try {
+      val consumerIdPair =  json.parse(str).extract[List[ConsumerIdPair]]
+      //The props value can be parsed to JNothing.
+      if(str.nonEmpty && consumerIdPair == Nil) 
+        throw new RuntimeException("props [skip_consent_sca_for_consumer_id_pairs] parse -> extract to Nil!")
+      else
+        consumerIdPair
+    } catch {
+      case e: Throwable => // error handling, found wrong props value as early as possible.
+        this.logger.error(s"props [skip_consent_sca_for_consumer_id_pairs] value is invalid, it should be the class($ConsumerIdPair) json format, current value is $str ." );
+        throw e;
+    }
+
+    APIUtil.getPropsValue("skip_consent_sca_for_consumer_id_pairs").map(extractor).getOrElse(Nil)
   }
 
   val emailDomainToEntitlementMappings: List[EmailDomainToEntitlementMapping] = {

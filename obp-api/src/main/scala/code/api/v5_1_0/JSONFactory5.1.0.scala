@@ -31,8 +31,7 @@ import code.api.berlin.group.v1_3.JSONFactory_BERLIN_GROUP_1_3.ConsentAccessJson
 import code.api.util.APIUtil.{DateWithDay, DateWithSeconds, gitCommit, stringOrNull}
 import code.api.util._
 import code.api.v1_2_1.BankRoutingJsonV121
-import code.api.v1_4_0.JSONFactory1_4_0.{LocationJsonV140, MetaJsonV140, transformToLocationFromV140, transformToMetaFromV140,
-  TransactionRequestAccountJsonV140,ChallengeJsonV140}
+import code.api.v1_4_0.JSONFactory1_4_0.{ChallengeJsonV140, LocationJsonV140, MetaJsonV140, TransactionRequestAccountJsonV140, transformToLocationFromV140, transformToMetaFromV140}
 import code.api.v2_0_0.TransactionRequestChargeJsonV200
 import code.api.v2_1_0.ResourceUserJSON
 import code.api.v3_0_0.JSONFactory300.{createLocationJson, createMetaJson, transformToAddressFromV300}
@@ -121,7 +120,8 @@ case class ConsentJsonV510(consent_id: String,
                            jwt: String, 
                            status: String,
                            consent_request_id: Option[String],
-                           scopes: Option[List[Role]])
+                           scopes: Option[List[Role]],
+                           consumer_id:String)
 
 
 case class ConsentInfoJsonV510(consent_id: String,
@@ -146,6 +146,8 @@ case class AllConsentJsonV510(consent_reference_id: String,
                               last_action_date: String,
                               last_usage_date: String,
                               jwt_payload: Box[ConsentJWT],
+                              frequency_per_day: Option[Int] = None,
+                              remaining_requests: Option[Int] = None,
                               api_standard: String,
                               api_version: String,
                              )
@@ -576,7 +578,12 @@ case class TransactionRequestsJsonV510(
   transaction_requests : List[TransactionRequestJsonV510]
 )
 
+case class PostTransactionRequestStatusJsonV510(status: String)
+case class TransactionRequestStatusJsonV510(transaction_request_id: String, status: String)
+
 case class SyncExternalUserJson(user_id: String)
+
+case class UserValidatedJson(is_validated: Boolean)
 
 object JSONFactory510 extends CustomJsonFormats {
 
@@ -854,7 +861,8 @@ object JSONFactory510 extends CustomJsonFormats {
       consent.jsonWebToken,
       consent.status,
       Some(consent.consentRequestId),
-      jsonWebTokenAsJValue.map(_.entitlements).toOption
+      jsonWebTokenAsJValue.map(_.entitlements).toOption,
+      consent.consumerId
     )
   }
 
@@ -889,6 +897,8 @@ object JSONFactory510 extends CustomJsonFormats {
           last_action_date = if (c.lastActionDate != null) new SimpleDateFormat(DateWithDay).format(c.lastActionDate) else null,
           last_usage_date = if (c.usesSoFarTodayCounterUpdatedAt != null) new SimpleDateFormat(DateWithSeconds).format(c.usesSoFarTodayCounterUpdatedAt) else null,
           jwt_payload = jwtPayload,
+          frequency_per_day = if(c.apiStandard == "BG") Some(c.frequencyPerDay) else None,
+          remaining_requests = if(c.apiStandard == "BG") Some(c.frequencyPerDay - c.usesSoFarTodayCounter) else None,
           api_standard = c.apiStandard,
           api_version = c.apiVersion
         )

@@ -824,7 +824,7 @@ object ExampleValue {
   lazy val line1Example = ConnectorField(NoExampleProvided,NoDescriptionProvided)
   glossaryItems += makeGlossaryItem("line1", line1Example)
 
-  lazy val fromDateExample = ConnectorField(NoExampleProvided,NoDescriptionProvided)
+  lazy val fromDateExample = ConnectorField(DateWithMsExampleString,s"The TimeStamp in the format: $DateWithMs")
   glossaryItems += makeGlossaryItem("from_date", fromDateExample)
 
   lazy val creditLimitExample = ConnectorField(NoExampleProvided,NoDescriptionProvided)
@@ -908,7 +908,7 @@ object ExampleValue {
   lazy val cashWithdrawalNationalFeeExample = ConnectorField(NoExampleProvided, NoDescriptionProvided)
   glossaryItems += makeGlossaryItem("ATM.cash_withdrawal_national_fee", cashWithdrawalNationalFeeExample)
   
-  lazy val cashWithdrawalInternationalFeeExample = ConnectorField(NoExampleProvided, NoDescriptionProvided)
+  lazy val cashWithdrawalInternationalFeeExample: ConnectorField = ConnectorField(NoExampleProvided, NoDescriptionProvided)
   glossaryItems += makeGlossaryItem("ATM.cash_withdrawal_international_fee", cashWithdrawalInternationalFeeExample)
   
   lazy val balanceInquiryFeeExample = ConnectorField(NoExampleProvided, NoDescriptionProvided)
@@ -1052,7 +1052,7 @@ object ExampleValue {
   lazy val itemsExample = ConnectorField(NoExampleProvided,NoDescriptionProvided)
   glossaryItems += makeGlossaryItem("items", itemsExample)
 
-  lazy val toDateExample = ConnectorField(NoExampleProvided,NoDescriptionProvided)
+  lazy val toDateExample = ConnectorField(DateWithMsExampleString,s"The TimeStamp in the format: $DateWithMs")
   glossaryItems += makeGlossaryItem("to_date", toDateExample)
 
   lazy val bankRoutingsExample = ConnectorField("bank routing in form of (scheme, address)",NoDescriptionProvided)
@@ -1622,7 +1622,7 @@ object ExampleValue {
   lazy val endDateExample = ConnectorField(NoExampleProvided,NoDescriptionProvided)
   glossaryItems += makeGlossaryItem("end_date", endDateExample)
 
-  lazy val canAddTransactionRequestToOwnAccountExample = ConnectorField(NoExampleProvided,NoDescriptionProvided)
+  lazy val canAddTransactionRequestToOwnAccountExample = ConnectorField(booleanFalse,NoDescriptionProvided)
   glossaryItems += makeGlossaryItem("can_add_transaction_request_to_own_account", canAddTransactionRequestToOwnAccountExample)
 
   lazy val otherAccountRoutingAddressExample = ConnectorField(NoExampleProvided,NoDescriptionProvided)
@@ -2340,7 +2340,7 @@ object ExampleValue {
   lazy val inboundAdapterInfoInternalErrorCodeExample = ConnectorField("error code", "fix me")
   lazy val inboundAdapterInfoInternalNameExample = ConnectorField("NAME", "fix me")
   lazy val inboundAdapterInfoInternalGit_commitExample = ConnectorField("git_commit", "fix me")
-  lazy val inboundAdapterInfoInternalDateExample = ConnectorField("date String", "fix me")
+  lazy val inboundAdapterInfoInternalDateExample = ConnectorField(DateWithMsExampleString, "")
   lazy val inboundAdapterInfoInternalVersionExample = ConnectorField("version string", "fix me")
 
   lazy val inboundStatusMessageStatusExample = ConnectorField("Status string", "fix me")
