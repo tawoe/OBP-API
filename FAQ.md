@@ -1,4 +1,4 @@
-# FAQ
+# FAQ for OBP-API
 
 
 ## How do I create new endpoints in OBP API?
