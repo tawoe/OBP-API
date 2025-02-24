@@ -78,7 +78,7 @@ jobs:
           cp obp-api/target/obp-api-1.*.war ./push/
       - uses: actions/upload-artifact@v4
         with:
-          name: push
+          name: $GITHUB_SHA
           path: push/
 
 
