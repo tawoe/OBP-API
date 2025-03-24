@@ -1,5 +1,6 @@
-FROM jetty:9.4-jdk11-alpine
+FROM eclipse-temurin:11-jre-ubi9-minimal
 
-# Copy OBP source code
-# Copy build artifact (.war file) into jetty from 'maven' stage.
-COPY /obp-api/target/obp-api-1.*.war /var/lib/jetty/webapps/ROOT.war
+
+RUN mkdir /opt/app
+COPY /obp-api/target/obp-api-1.*.jar /opt/app/
+CMD ["java", "-jar", "/opt/app/japp.jar"]

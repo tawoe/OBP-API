@@ -27,9 +27,9 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Set up JDK 11
-        uses: actions/setup-java@v2
+        uses: actions/setup-java@v4
         with:
           java-version: '11'
           distribution: 'adopt'
@@ -73,15 +73,12 @@ jobs:
 
           echo consents.allowed=true >> obp-api/src/main/resources/props/test.default.props
           MAVEN_OPTS="-Xmx3G -Xss2m" mvn clean package -Pprod
-      - name: Save user name and .war artifact
+      - name: Build the Docker image
         run: |
-          mkdir -p ./pr
-          echo ${{ github.event.pull_request.user.login }} > ./pr/UN
-          cp obp-api/target/obp-api-1.10.1.war ./pr/obp-api-1.10.1.war
-      - uses: actions/upload-artifact@v4
-        with:
-          name: pr
-          path: pr/
+          echo "${{ secrets.DOCKER_HUB_TOKEN }}" | docker login -u "${{ secrets.DOCKER_HUB_USERNAME }}" --password-stdin docker.io
+          docker build . --file .github/Dockerfile_PreBuild --tag docker.io/${{ env.DOCKER_HUB_ORGANIZATION }}/obp-api-${{ env.USER_NAME }}:latest 
+          docker push docker.io/${{ env.DOCKER_HUB_ORGANIZATION }}/obp-api-${{ env.USER_NAME }} --all-tags
+          echo docker done
 
 
 
