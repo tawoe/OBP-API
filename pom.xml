@@ -133,9 +133,9 @@
             <displayCmd>true</displayCmd>
             <jvmArgs>
               <jvmArg>-DpackageLinkDefs=file://${project.build.directory}/packageLinkDefs.properties</jvmArg>
-              <jvmArg>-Xss64m</jvmArg>
+              <jvmArg>-Xss4m</jvmArg>
               <jvmArg>-Xms128m</jvmArg>
-              <jvmArg>-Xmx4096m</jvmArg>
+              <jvmArg>-Xmx3g</jvmArg>
             </jvmArgs>
             <args>
               <arg>-unchecked</arg>
