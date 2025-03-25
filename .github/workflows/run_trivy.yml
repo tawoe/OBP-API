@@ -10,7 +10,7 @@ on:
 env:
   ## Sets environment variable
   DOCKER_HUB_ORGANIZATION: ${{ vars.DOCKER_HUB_ORGANIZATION }}
-  DOCKER_HUB_REPOSITORY: obp-api
+  DOCKER_HUB_REPOSITORY: obp-api-http4s
 
 
 jobs:
