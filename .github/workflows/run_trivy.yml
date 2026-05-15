@@ -4,7 +4,6 @@ on:
   workflow_run:
     workflows:
       - Build and publish container develop
-      - Build and publish container non develop
     types:
       - completed
 env:
@@ -15,7 +14,6 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    if: github.repository == 'OpenBankProject/OBP-API' && github.event.workflow_run.conclusion == 'success'
 
     steps:
       - uses: actions/checkout@v4
