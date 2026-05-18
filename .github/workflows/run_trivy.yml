@@ -14,6 +14,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -27,19 +28,19 @@ jobs:
           jqFilter='.[] | select(.metadata.container.tags[] | contains("latest")) | .name | sub("sha256:";"")'
           sha=$(gh api -H "${headers}" "${endpoint}" | jq --raw-output "${jqFilter}")
           echo "Trivy DB sha256:${sha}"
-          echo "::set-output name=sha::${sha}"
+          echo "sha=${sha}" >> $GITHUB_OUTPUT
       - uses: actions/cache@v4
         with:
           path: .trivy
           key: ${{ runner.os }}-trivy-db-${{ steps.trivy-db.outputs.sha }}
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.28.0
         with:
-          image-ref: "docker.io/${{ env.DOCKER_HUB_ORGANIZATION }}/${{ env.DOCKER_HUB_REPOSITORY }}:${{ github.sha }}"
+          image-ref: "docker.io/${{ env.DOCKER_HUB_ORGANIZATION }}/${{ env.DOCKER_HUB_REPOSITORY }}:${{ github.event.workflow_run.head_sha }}"
           format: "template"
           template: "@/contrib/sarif.tpl"
           output: "trivy-results.sarif"
-          security-checks: "vuln"
+          scanners: "vuln"
           severity: "CRITICAL,HIGH"
           timeout: "30m"
           cache-dir: .trivy
