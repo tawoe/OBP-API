@@ -1,9 +1,15 @@
 name: scan container image
 
 on:
+  workflow_dispatch:
+    inputs:
+      image_sha:
+        description: 'Commit SHA of the image to scan (defaults to current HEAD)'
+        required: false
+        default: ''
   workflow_run:
     workflows:
-      - Build and publish container develop
+      - build_container
     types:
       - completed
 env:
@@ -14,7 +20,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -36,7 +42,7 @@ jobs:
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@0.28.0
         with:
-          image-ref: "docker.io/${{ env.DOCKER_HUB_ORGANIZATION }}/${{ env.DOCKER_HUB_REPOSITORY }}:${{ github.event.workflow_run.head_sha }}"
+          image-ref: "docker.io/${{ env.DOCKER_HUB_ORGANIZATION }}/${{ env.DOCKER_HUB_REPOSITORY }}:${{ github.event_name == 'workflow_dispatch' && (inputs.image_sha || github.sha) || github.event.workflow_run.head_sha }}"
           format: "template"
           template: "@/contrib/sarif.tpl"
           output: "trivy-results.sarif"

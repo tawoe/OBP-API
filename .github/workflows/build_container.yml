@@ -1,4 +1,4 @@
-name: Build and publish container develop
+name: build_container
 
 # read-write repo token
 # access to secrets
