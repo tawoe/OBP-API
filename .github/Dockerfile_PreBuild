@@ -1,4 +1,4 @@
-FROM eclipse-temurin:25-jre-alpine
+FROM eclipse-temurin:25-jre-ubi10-minimal
 
 RUN addgroup -S obp && adduser -S -h /app -G obp obp
 
